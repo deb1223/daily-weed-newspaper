@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageData } from "@/lib/data";
+import { displayProductSize } from "@/lib/format";
 
 const ZIGGY_LINERS = [
   "these idiots finally remembered how to run a sale",
@@ -232,7 +233,14 @@ export default function Page1({ data }: { data: PageData }) {
             topDeals.map((deal, i) => (
               <div key={deal.id} className="deal-box">
                 <span className="deal-number">#{i + 1}</span>
-                <div className="deal-name">{deal.name}</div>
+                <div className="deal-name">
+                  {deal.name}
+                  {deal.weight_grams && (
+                    <span style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginLeft: "8px", fontWeight: 400 }}>
+                      {displayProductSize(deal.name, deal.category, deal.weight_grams)}
+                    </span>
+                  )}
+                </div>
                 <div className="deal-dispensary">
                   {deal.dispensaries?.name ?? "Unknown Dispensary"}
                   {deal.brand && (

@@ -118,17 +118,36 @@ async function getStats(): Promise<SiteStats> {
 }
 
 // ─── CATEGORY WINNERS ────────────────────────────────────────
+// Weight constraints: Flower compared at 3.5g, Pre-Rolls at 1g single.
+// Other categories have varied sizing so no weight constraint.
+const WINNER_CONFIG: {
+  label: string;
+  cats: string[];
+  minGrams?: number;
+  maxGrams?: number;
+}[] = [
+  { label: "Flower (3.5g)", cats: ["Flower", "flower"], minGrams: 3.0, maxGrams: 4.0 },
+  { label: "Pre-Rolls (1g)", cats: ["Pre-Rolls", "pre-roll"], minGrams: 0.9, maxGrams: 1.2 },
+  { label: "Edibles", cats: ["Edible", "Edibles", "edible"] },
+  { label: "Vape", cats: ["Vape", "vape", "Vaporizers"] },
+  { label: "Concentrates", cats: ["Concentrate", "Concentrates", "extract"] },
+];
+
 async function getCategoryWinners(): Promise<CategoryWinner[]> {
   const results = await Promise.all(
-    Object.entries(CATEGORY_GROUPS).map(async ([label, cats]) => {
-      const { data } = await supabase
+    WINNER_CONFIG.map(async ({ label, cats, minGrams, maxGrams }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q: any = supabase
         .from("products")
         .select("name, price, dispensaries(name)")
         .in("category", cats)
         .eq("in_stock", true)
-        .not("price", "is", null)
-        .order("price", { ascending: true })
-        .limit(1);
+        .not("price", "is", null);
+
+      if (minGrams !== undefined) q = q.gte("weight_grams", minGrams);
+      if (maxGrams !== undefined) q = q.lte("weight_grams", maxGrams);
+
+      const { data } = await q.order("price", { ascending: true }).limit(1);
 
       const row = data?.[0] as
         | { name: string; price: number; dispensaries: DispensaryRef | null }

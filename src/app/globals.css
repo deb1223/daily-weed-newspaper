@@ -672,6 +672,13 @@ body::after {
   white-space: nowrap;
 }
 
+.td-size {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 /* ─── PAGINATION ────────────────────────────────────────────── */
 .pagination {
   display: flex;
