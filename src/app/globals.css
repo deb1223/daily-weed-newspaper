@@ -477,6 +477,18 @@ body::after {
   line-height: 1;
 }
 
+.mini-title-link {
+  font-family: 'UnifrakturMaguntia', cursive;
+  font-size: clamp(24px, 4vw, 48px);
+  line-height: 1;
+  display: block;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.mini-title-link:hover { color: #2d6a4f; }
+
 .breadcrumb {
   font-family: 'Space Mono', monospace;
   font-size: 11px;

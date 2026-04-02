@@ -149,7 +149,16 @@ export default function Page1({ data }: { data: PageData }) {
                     )}
                   </td>
                   <td className="price">
-                    {winner.price !== null ? `$${Number(winner.price).toFixed(2)}` : "—"}
+                    {winner.price !== null ? (
+                      <>
+                        ${Number(winner.price).toFixed(2)}
+                        {winner.pricePerGram !== null && (
+                          <span style={{ display: "block", fontFamily: "Space Mono, monospace", fontSize: "9px", color: "var(--muted)", fontWeight: 400 }}>
+                            ${winner.pricePerGram.toFixed(2)}/g
+                          </span>
+                        )}
+                      </>
+                    ) : "—"}
                   </td>
                 </tr>
               ))}

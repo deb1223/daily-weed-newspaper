@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -22,7 +22,7 @@ interface Product {
   thc_percentage: number | null;
   in_stock: boolean;
   dispensary_id: string;
-  dispensaries: Dispensary | null;
+  dispensaries: Dispensary | { name: string }[] | null;
 }
 
 interface CompareResult {
@@ -33,7 +33,7 @@ interface CompareResult {
   discountPct: number | null;
 }
 
-type SortField = "price" | "thc" | "discount";
+type SortField = "price" | "thc" | "discount" | "size";
 type SortDir = "asc" | "desc";
 
 const CATEGORIES = [
@@ -97,62 +97,6 @@ const SIZE_OPTIONS: Record<string, { label: string; value: string }[]> = {
   ],
 };
 
-// ─── SIZE FILTER APPLICATION ───────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function applySizeFilter(q: any, cat: string, size: string): any {
-  if (size === "all" || !size) return q;
-
-  const gramRanges: Record<string, Record<string, [number, number]>> = {
-    Flower: {
-      "1g":   [0.9,  1.1],
-      "3.5g": [3.0,  4.0],
-      "7g":   [6.5,  7.5],
-      "14g":  [13,   15],
-      "28g":  [27,   30],
-    },
-    "Pre-Rolls": {
-      "0.5g": [0.4, 0.6],
-      "1g":   [0.9, 1.2],
-    },
-    Vape: {
-      "0.3g": [0.25, 0.35],
-      "0.5g": [0.4,  0.6],
-      "1g":   [0.9,  1.2],
-      "2g":   [1.8,  2.2],
-    },
-    Concentrates: {
-      "0.5g": [0.4, 0.6],
-      "1g":   [0.9, 1.2],
-      "2g":   [1.8, 2.2],
-    },
-  };
-
-  const ranges = gramRanges[cat];
-  if (ranges?.[size]) {
-    const [lo, hi] = ranges[size];
-    return q.gte("weight_grams", lo).lte("weight_grams", hi);
-  }
-
-  // Pre-roll pack sizes — match name
-  if (cat === "Pre-Rolls") {
-    if (size === "2pk") return q.or("name.ilike.%2pk%,name.ilike.%2-pack%,name.ilike.%2 pack%");
-    if (size === "5pk") return q.or("name.ilike.%5pk%,name.ilike.%5-pack%,name.ilike.%5 pack%");
-  }
-
-  // Edibles/Tinctures — mg in name
-  if (cat === "Edibles" || cat === "Tinctures") {
-    if (size === "200mg+") {
-      return q.or(
-        "name.ilike.%200mg%,name.ilike.%250mg%,name.ilike.%300mg%,name.ilike.%400mg%," +
-        "name.ilike.%500mg%,name.ilike.%600mg%,name.ilike.%750mg%,name.ilike.%1000mg%"
-      );
-    }
-    return q.ilike("name", `%${size}%`);
-  }
-
-  return q;
-}
-
 const CAT_MAP: Record<string, string[]> = {
   Flower:       ["Flower", "flower"],
   "Pre-Rolls":  ["Pre-Rolls", "pre-roll"],
@@ -163,11 +107,55 @@ const CAT_MAP: Record<string, string[]> = {
   Accessories:  ["Accessories", "Accessory", "CBD"],
 };
 
+// ─── CLIENT-SIDE SIZE FILTER ───────────────────────────────────
+function applyClientSizeFilter(rows: Product[], cat: string, size: string): Product[] {
+  if (size === "all" || !size) return rows;
+
+  const gramRanges: Record<string, Record<string, [number, number]>> = {
+    Flower:       { "1g": [0.85,1.15], "3.5g": [3.0,4.0], "7g": [6.0,8.0], "14g": [12.0,16.0], "28g": [24.0,32.0] },
+    "Pre-Rolls":  { "0.5g": [0.4,0.6], "1g": [0.85,1.15] },
+    Vape:         { "0.3g": [0.25,0.35], "0.5g": [0.4,0.6], "1g": [0.85,1.15], "2g": [1.7,2.3] },
+    Concentrates: { "0.5g": [0.4,0.6], "1g": [0.85,1.15], "2g": [1.7,2.3] },
+  };
+
+  const ranges = gramRanges[cat];
+  if (ranges?.[size]) {
+    const [lo, hi] = ranges[size];
+    return rows.filter(
+      (p) => p.weight_grams != null && Number(p.weight_grams) >= lo && Number(p.weight_grams) <= hi
+    );
+  }
+
+  if (cat === "Pre-Rolls") {
+    if (size === "2pk") return rows.filter((p) => /2[\s-]?p(?:k|ack)/i.test(p.name));
+    if (size === "5pk") return rows.filter((p) => /5[\s-]?p(?:k|ack)/i.test(p.name));
+  }
+
+  if (cat === "Edibles" || cat === "Tinctures") {
+    if (size === "200mg+") {
+      return rows.filter((p) => {
+        const m = p.name.match(/(?:^|\D)(\d+)mg/i);
+        return m ? parseInt(m[1]) >= 200 : false;
+      });
+    }
+    // \b word boundary: \b10mg\b won't match "100mg"
+    const mgVal = size.replace("mg", "");
+    const regex = new RegExp(`\\b${mgVal}mg\\b`, "i");
+    return rows.filter((p) => regex.test(p.name));
+  }
+
+  return rows;
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────
+function getDispName(dispensaries: Product["dispensaries"]): string {
+  return (Array.isArray(dispensaries) ? dispensaries[0]?.name : dispensaries?.name) ?? "—";
+}
+
 export default function PricesPage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [dispensaries, setDispensaries] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
 
   // Filters
@@ -187,125 +175,166 @@ export default function PricesPage() {
   } | null>(null);
   const [compareLoading, setCompareLoading] = useState(false);
 
-  // Derived: does this category have size options?
   const sizeOptions = SIZE_OPTIONS[category] ?? null;
   const sizeLabel = category === "Edibles" || category === "Tinctures" ? "Dose" : "Size";
   const showSizeFilter = !!sizeOptions;
 
-  // Schema log + dispensary list
+  // ─── LOAD ALL PRODUCTS ONCE ────────────────────────────────
   useEffect(() => {
-    supabase.from("products").select("*").limit(1).then(({ data }) => {
-      if (data?.[0]) console.log("[DWN Prices] Schema:", Object.keys(data[0]));
-    });
+    let cancelled = false;
+
+    async function loadAll() {
+      setLoading(true);
+      const { data } = await supabase
+        .from("products")
+        .select("id, name, brand, category, weight_grams, price, original_price, on_sale, thc_percentage, dispensary_id, dispensaries(name)")
+        .eq("in_stock", true)
+        .limit(5000);
+      if (!cancelled) {
+        setAllProducts((data ?? []) as Product[]);
+        setLoading(false);
+      }
+    }
+
+    loadAll();
+
     supabase
       .from("dispensaries")
       .select("name")
       .neq("slug", "__test__")
       .then(({ data }) => {
-        const names = ((data ?? []) as { name: string }[])
-          .map((d) => d.name)
-          .filter(Boolean)
-          .sort();
-        setDispensaries(names);
+        if (!cancelled) {
+          const names = ((data ?? []) as { name: string }[])
+            .map((d) => d.name)
+            .filter(Boolean)
+            .sort();
+          setDispensaries(names);
+        }
       });
+
+    return () => { cancelled = true; };
   }, []);
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q: any = supabase
-      .from("products")
-      .select("*, dispensaries(name)", { count: "exact" })
-      .eq("in_stock", true);
-
-    if (query.trim()) {
-      q = q.ilike("name", `%${query.trim()}%`);
-    }
-
-    if (category !== "All") {
-      const variants = CAT_MAP[category];
-      q = variants ? q.in("category", variants) : q.ilike("category", `%${category}%`);
-    }
-
-    // Size filter
-    if (showSizeFilter && sizeFilter !== "all") {
-      q = applySizeFilter(q, category, sizeFilter);
-    }
-
-    if (dispensary !== "All") {
-      const { data: dispData } = await supabase
-        .from("dispensaries")
-        .select("id")
-        .eq("name", dispensary)
-        .single();
-      if (dispData?.id) q = q.eq("dispensary_id", dispData.id);
-    }
-
-    if (saleOnly) {
-      q = q.eq("on_sale", true);
-    }
-
-    const sortCol =
-      sortField === "discount" ? "price"
-      : sortField === "thc" ? "thc_percentage"
-      : "price";
-    q = q.order(sortCol, { ascending: sortDir === "asc", nullsFirst: false });
-    q = q.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-    const { data, count, error } = await q;
-    if (error) console.error("[DWN] Query error:", error);
-
-    let rows: Product[] = (data ?? []) as Product[];
-
-    if (sortField === "discount") {
-      rows = rows
-        .map((p) => ({
-          ...p,
-          _disc:
-            p.original_price && p.price && p.original_price > p.price
-              ? Math.round(((p.original_price - p.price) / p.original_price) * 100)
-              : 0,
-        }))
-        .sort((a, b) =>
-          sortDir === "desc"
-            ? (b as unknown as { _disc: number })._disc - (a as unknown as { _disc: number })._disc
-            : (a as unknown as { _disc: number })._disc - (b as unknown as { _disc: number })._disc
-        );
-    }
-
-    setProducts(rows);
-    setTotal(count ?? 0);
-    setLoading(false);
-  }, [query, category, sizeFilter, showSizeFilter, dispensary, saleOnly, sortField, sortDir, page]);
-
+  // Reset page whenever any filter/sort changes
   useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+    setPage(0);
+  }, [query, category, sizeFilter, dispensary, saleOnly, sortField, sortDir]);
 
-  // Reset size filter when category changes
+  // ─── REACTIVE FILTER + SORT ────────────────────────────────
+  const filteredProducts = useMemo(() => {
+    let rows = allProducts;
+
+    // Text search: name OR brand
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      rows = rows.filter(
+        (p) => p.name.toLowerCase().includes(q) || (p.brand ?? "").toLowerCase().includes(q)
+      );
+    }
+
+    // Category
+    if (category !== "All") {
+      const variants = CAT_MAP[category] ?? [category];
+      rows = rows.filter((p) => variants.includes(p.category ?? ""));
+    }
+
+    // Size / Dose
+    if (showSizeFilter && sizeFilter !== "all") {
+      rows = applyClientSizeFilter(rows, category, sizeFilter);
+    }
+
+    // Dispensary
+    if (dispensary !== "All") {
+      rows = rows.filter((p) => getDispName(p.dispensaries) === dispensary);
+    }
+
+    // On sale
+    if (saleOnly) {
+      rows = rows.filter(
+        (p) =>
+          p.on_sale ||
+          (p.original_price != null && p.price != null && Number(p.original_price) > Number(p.price))
+      );
+    }
+
+    // Sort
+    return [...rows].sort((a, b) => {
+      if (sortField === "price") {
+        const va = a.price != null ? Number(a.price) : (sortDir === "asc" ? Infinity : -Infinity);
+        const vb = b.price != null ? Number(b.price) : (sortDir === "asc" ? Infinity : -Infinity);
+        return sortDir === "asc" ? va - vb : vb - va;
+      }
+      if (sortField === "thc") {
+        const va = a.thc_percentage != null ? Number(a.thc_percentage) : (sortDir === "desc" ? -Infinity : Infinity);
+        const vb = b.thc_percentage != null ? Number(b.thc_percentage) : (sortDir === "desc" ? -Infinity : Infinity);
+        return sortDir === "asc" ? va - vb : vb - va;
+      }
+      if (sortField === "discount") {
+        const disc = (p: Product) =>
+          p.original_price && p.price && Number(p.original_price) > Number(p.price)
+            ? (Number(p.original_price) - Number(p.price)) / Number(p.original_price)
+            : 0;
+        const va = disc(a), vb = disc(b);
+        return sortDir === "desc" ? vb - va : va - vb;
+      }
+      if (sortField === "size") {
+        if (category === "Edibles" || category === "Tinctures") {
+          const getMg = (p: Product) => {
+            const m = p.name.match(/(?:^|\D)(\d+)mg/i);
+            return m ? parseInt(m[1]) : null;
+          };
+          const va = getMg(a), vb = getMg(b);
+          if (va === null && vb === null) return 0;
+          if (va === null) return 1;
+          if (vb === null) return -1;
+          return sortDir === "desc" ? vb - va : va - vb;
+        }
+        const va = a.weight_grams != null ? Number(a.weight_grams) : null;
+        const vb = b.weight_grams != null ? Number(b.weight_grams) : null;
+        if (va === null && vb === null) return 0;
+        if (va === null) return 1;
+        if (vb === null) return -1;
+        return sortDir === "desc" ? vb - va : va - vb;
+      }
+      return 0;
+    });
+  }, [allProducts, query, category, sizeFilter, showSizeFilter, dispensary, saleOnly, sortField, sortDir]);
+
+  const totalFiltered = filteredProducts.length;
+  const pageProducts = filteredProducts.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(totalFiltered / PAGE_SIZE);
+
+  // ─── HANDLERS ─────────────────────────────────────────────
   const handleCategoryChange = (val: string) => {
     setCategory(val);
     setSizeFilter("all");
-    setPage(0);
   };
 
   const handleSort = (field: SortField) => {
-    if (sortField === field) {
+    if (field === "size") {
+      if (sortField !== "size") {
+        setSortField("size");
+        setSortDir("desc");
+      } else if (sortDir === "desc") {
+        setSortDir("asc");
+      } else {
+        setSortField("price");
+        setSortDir("asc");
+      }
+    } else if (sortField === field) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortField(field);
       setSortDir(field === "discount" ? "desc" : "asc");
     }
-    setPage(0);
   };
 
   const sortIndicator = (field: SortField) =>
     sortField !== field ? " ↕" : sortDir === "asc" ? " ↑" : " ↓";
 
   const calcDiscount = (p: Product) => {
-    if (!p.original_price || !p.price || p.original_price <= p.price) return null;
-    return Math.round(((p.original_price - p.price) / p.original_price) * 100);
+    if (!p.original_price || !p.price || Number(p.original_price) <= Number(p.price)) return null;
+    return Math.round(((Number(p.original_price) - Number(p.price)) / Number(p.original_price)) * 100);
   };
 
   const displayThc = (p: Product) => {
@@ -313,7 +342,7 @@ export default function PricesPage() {
     return `${Number(p.thc_percentage).toFixed(1)}%`;
   };
 
-  // ─── COMPARE ────────────────────────────────────────────────
+  // ─── COMPARE ──────────────────────────────────────────────
   const handleCompare = async (productName: string) => {
     setCompareLoading(true);
     setCompareModal({ productName, results: [], totalCount: 0 });
@@ -328,9 +357,7 @@ export default function PricesPage() {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const results: CompareResult[] = (data ?? []).map((p: any) => ({
-      dispensaryName:
-        (Array.isArray(p.dispensaries) ? p.dispensaries[0]?.name : p.dispensaries?.name) ??
-        "Unknown",
+      dispensaryName: getDispName(p.dispensaries),
       price: p.price,
       original_price: p.original_price,
       on_sale: p.on_sale,
@@ -344,15 +371,12 @@ export default function PricesPage() {
     setCompareLoading(false);
   };
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-
   const today = new Date().toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
   });
 
-  // Grid columns for search-inputs: grow when size filter is visible
   const searchGridCols = showSizeFilter
     ? "1fr auto auto auto auto"
     : "1fr auto auto auto";
@@ -361,11 +385,11 @@ export default function PricesPage() {
     <div className="prices-page">
       {/* Mini Masthead */}
       <div className="mini-masthead">
-        <div className="mini-title">Daily Weed Newspaper</div>
+        <Link href="/" className="mini-title-link">Daily Weed Newspaper</Link>
         <div className="breadcrumb">
           <Link href="/">Home</Link> → Price Intelligence Dashboard
           <span style={{ marginLeft: "16px", color: "var(--muted)" }}>
-            {total.toLocaleString()} products &middot; Updated {today}
+            {loading ? "Loading…" : `${totalFiltered.toLocaleString()} products`} &middot; Updated {today}
           </span>
         </div>
       </div>
@@ -373,7 +397,6 @@ export default function PricesPage() {
       {/* Search Zone */}
       <div className="search-zone">
         <div className="search-inputs" style={{ gridTemplateColumns: searchGridCols }}>
-          {/* Text search */}
           <div>
             <label className="search-label">Search Product or Strain</label>
             <input
@@ -381,12 +404,10 @@ export default function PricesPage() {
               type="text"
               placeholder="e.g. Blue Dream, OG Kush, gummies..."
               value={query}
-              onChange={(e) => { setQuery(e.target.value); setPage(0); }}
-              onKeyDown={(e) => e.key === "Enter" && fetchProducts()}
+              onChange={(e) => setQuery(e.target.value)}
             />
           </div>
 
-          {/* Category */}
           <div>
             <label className="search-label">Category</label>
             <select
@@ -412,7 +433,7 @@ export default function PricesPage() {
             <select
               className="search-select"
               value={sizeFilter}
-              onChange={(e) => { setSizeFilter(e.target.value); setPage(0); }}
+              onChange={(e) => setSizeFilter(e.target.value)}
               style={{ minWidth: "120px" }}
             >
               {(sizeOptions ?? []).map((o) => (
@@ -421,23 +442,19 @@ export default function PricesPage() {
             </select>
           </div>
 
-          {/* Dispensary */}
           <div>
             <label className="search-label">Dispensary</label>
             <select
               className="search-select"
               value={dispensary}
-              onChange={(e) => { setDispensary(e.target.value); setPage(0); }}
+              onChange={(e) => setDispensary(e.target.value)}
             >
               <option>All</option>
               {dispensaries.map((d) => <option key={d}>{d}</option>)}
             </select>
           </div>
 
-          <button
-            className="search-button"
-            onClick={() => { setPage(0); fetchProducts(); }}
-          >
+          <button className="search-button" onClick={() => setPage(0)}>
             Search
           </button>
         </div>
@@ -447,13 +464,13 @@ export default function PricesPage() {
       <div className="filter-row">
         <button
           className={`filter-chip${sortField === "price" && sortDir === "asc" ? " active" : ""}`}
-          onClick={() => { setSortField("price"); setSortDir("asc"); setPage(0); }}
+          onClick={() => { setSortField("price"); setSortDir("asc"); }}
         >
           Price ↑
         </button>
         <button
           className={`filter-chip${sortField === "price" && sortDir === "desc" ? " active" : ""}`}
-          onClick={() => { setSortField("price"); setSortDir("desc"); setPage(0); }}
+          onClick={() => { setSortField("price"); setSortDir("desc"); }}
         >
           Price ↓
         </button>
@@ -472,7 +489,7 @@ export default function PricesPage() {
         <span className="filter-spacer" />
         <button
           className={`filter-chip sale-toggle${saleOnly ? " active" : ""}`}
-          onClick={() => { setSaleOnly((v) => !v); setPage(0); }}
+          onClick={() => setSaleOnly((v) => !v)}
         >
           On Sale Only
         </button>
@@ -483,7 +500,7 @@ export default function PricesPage() {
         <div className="gork-empty">
           <p>Ziggy is scanning the market...</p>
         </div>
-      ) : products.length === 0 ? (
+      ) : pageProducts.length === 0 ? (
         <div className="gork-empty">
           <div className="gork-empty-headline">No Products Found</div>
           <p>
@@ -494,8 +511,8 @@ export default function PricesPage() {
       ) : (
         <>
           <div style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginBottom: "8px" }}>
-            Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of{" "}
-            {total.toLocaleString()} products
+            Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalFiltered)} of{" "}
+            {totalFiltered.toLocaleString()} products
           </div>
 
           <table className="results-table">
@@ -503,7 +520,9 @@ export default function PricesPage() {
               <tr>
                 <th>Product</th>
                 <th>Category</th>
-                <th>Size</th>
+                <th onClick={() => handleSort("size")} style={{ cursor: "pointer" }}>
+                  Size{sortField === "size" ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
+                </th>
                 <th>Dispensary</th>
                 <th onClick={() => handleSort("price")}>Price{sortIndicator("price")}</th>
                 <th onClick={() => handleSort("thc")}>THC{sortIndicator("thc")}</th>
@@ -512,7 +531,7 @@ export default function PricesPage() {
               </tr>
             </thead>
             <tbody>
-              {products.map((p, i) => {
+              {pageProducts.map((p, i) => {
                 const discount = calcDiscount(p);
                 const sizeDisplay = displayProductSize(p.name, p.category, p.weight_grams);
                 return (
@@ -528,7 +547,7 @@ export default function PricesPage() {
                       <span className="td-size">{sizeDisplay}</span>
                     </td>
                     <td>
-                      <span className="td-dispensary">{p.dispensaries?.name || "—"}</span>
+                      <span className="td-dispensary">{getDispName(p.dispensaries)}</span>
                     </td>
                     <td>
                       <span className="td-price">

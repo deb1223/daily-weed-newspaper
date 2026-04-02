@@ -33,6 +33,7 @@ export interface CategoryWinner {
   label: string;
   name: string | null;
   price: number | null;
+  pricePerGram: number | null;
   dispensaryName: string | null;
 }
 
@@ -118,16 +119,16 @@ async function getStats(): Promise<SiteStats> {
 }
 
 // ─── CATEGORY WINNERS ────────────────────────────────────────
-// Weight constraints: Flower compared at 3.5g, Pre-Rolls at 1g single.
-// Other categories have varied sizing so no weight constraint.
+// Flower and Pre-Rolls use best price-per-gram logic.
+// Other categories use cheapest total price.
 const WINNER_CONFIG: {
   label: string;
   cats: string[];
-  minGrams?: number;
   maxGrams?: number;
+  perGram?: boolean;
 }[] = [
-  { label: "Flower (3.5g)", cats: ["Flower", "flower"], minGrams: 3.0, maxGrams: 4.0 },
-  { label: "Pre-Rolls (1g)", cats: ["Pre-Rolls", "pre-roll"], minGrams: 0.9, maxGrams: 1.2 },
+  { label: "Flower ($/g)", cats: ["Flower", "flower"], maxGrams: 14, perGram: true },
+  { label: "Pre-Rolls ($/g)", cats: ["Pre-Rolls", "pre-roll"], maxGrams: 5, perGram: true },
   { label: "Edibles", cats: ["Edible", "Edibles", "edible"] },
   { label: "Vape", cats: ["Vape", "vape", "Vaporizers"] },
   { label: "Concentrates", cats: ["Concentrate", "Concentrates", "extract"] },
@@ -135,20 +136,41 @@ const WINNER_CONFIG: {
 
 async function getCategoryWinners(): Promise<CategoryWinner[]> {
   const results = await Promise.all(
-    WINNER_CONFIG.map(async ({ label, cats, minGrams, maxGrams }) => {
+    WINNER_CONFIG.map(async ({ label, cats, maxGrams, perGram }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let q: any = supabase
         .from("products")
-        .select("name, price, dispensaries(name)")
+        .select("name, price, weight_grams, dispensaries(name)")
         .in("category", cats)
         .eq("in_stock", true)
         .not("price", "is", null);
 
-      if (minGrams !== undefined) q = q.gte("weight_grams", minGrams);
+      if (perGram) {
+        // Find best price-per-gram: fetch candidates, compute $/g, pick minimum
+        q = q.not("weight_grams", "is", null).gt("weight_grams", 0);
+        if (maxGrams !== undefined) q = q.lte("weight_grams", maxGrams);
+        const { data } = await q.order("price", { ascending: true }).limit(300);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let bestRow: any = null;
+        let bestPpg = Infinity;
+        for (const row of data ?? []) {
+          const ppg = Number(row.price) / Number(row.weight_grams);
+          if (ppg < bestPpg) { bestPpg = ppg; bestRow = row; }
+        }
+
+        return {
+          label,
+          name: bestRow?.name ?? null,
+          price: bestRow ? Number(bestRow.price) : null,
+          pricePerGram: bestRow ? Math.round(bestPpg * 100) / 100 : null,
+          dispensaryName: (bestRow?.dispensaries as DispensaryRef | null)?.name ?? null,
+        };
+      }
+
+      // Standard: cheapest total price
       if (maxGrams !== undefined) q = q.lte("weight_grams", maxGrams);
-
       const { data } = await q.order("price", { ascending: true }).limit(1);
-
       const row = data?.[0] as
         | { name: string; price: number; dispensaries: DispensaryRef | null }
         | undefined;
@@ -157,6 +179,7 @@ async function getCategoryWinners(): Promise<CategoryWinner[]> {
         label,
         name: row?.name ?? null,
         price: row?.price ?? null,
+        pricePerGram: null,
         dispensaryName: (row?.dispensaries as DispensaryRef | null)?.name ?? null,
       };
     })
