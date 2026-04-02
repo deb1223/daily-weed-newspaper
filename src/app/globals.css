@@ -691,6 +691,26 @@ body::after {
   white-space: nowrap;
 }
 
+.view-menu-link {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  color: #2d6a4f;
+  text-decoration: none;
+  margin-left: 6px;
+}
+.view-menu-link:hover { text-decoration: underline; }
+
+.pro-badge {
+  font-family: 'Space Mono', monospace;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+  background: #d4af37;
+  padding: 1px 4px;
+  vertical-align: middle;
+  letter-spacing: 0.05em;
+}
+
 /* ─── PAGINATION ────────────────────────────────────────────── */
 .pagination {
   display: flex;

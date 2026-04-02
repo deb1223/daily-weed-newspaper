@@ -31,6 +31,7 @@ interface CompareResult {
   original_price: number | null;
   on_sale: boolean;
   discountPct: number | null;
+  viewUrl: string;
 }
 
 type SortField = "price" | "thc" | "discount" | "size";
@@ -106,6 +107,24 @@ const CAT_MAP: Record<string, string[]> = {
   Tinctures:    ["Tincture", "Oral", "oral"],
   Accessories:  ["Accessories", "Accessory", "CBD"],
 };
+
+// ─── MENU URL BUILDER ─────────────────────────────────────────
+function buildMenuUrl(
+  platform: string | null | undefined,
+  slug: string | null | undefined,
+  dutchieUrl: string | null | undefined,
+  productName: string,
+  dispensaryName: string
+): string {
+  if (platform === "dutchie") {
+    if (dutchieUrl) return `${dutchieUrl.replace(/\/+$/, "")}/menu`;
+    if (slug) return `https://dutchie.com/dispensary/${slug}/menu`;
+  }
+  if (platform === "iheartjane" && slug) {
+    return `https://iheartjane.com/dispensaries/${slug}`;
+  }
+  return `https://www.google.com/search?q=${encodeURIComponent(`${productName} ${dispensaryName} dispensary`)}`;
+}
 
 // ─── CLIENT-SIDE SIZE FILTER ───────────────────────────────────
 function applyClientSizeFilter(rows: Product[], cat: string, size: string): Product[] {
@@ -349,23 +368,27 @@ export default function PricesPage() {
 
     const { data } = await supabase
       .from("products")
-      .select("price, original_price, on_sale, dispensaries(name)")
+      .select("price, original_price, on_sale, dispensaries(name, platform, slug, dutchie_url)")
       .ilike("name", productName)
       .eq("in_stock", true)
       .order("price", { ascending: true })
       .limit(50);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const results: CompareResult[] = (data ?? []).map((p: any) => ({
-      dispensaryName: getDispName(p.dispensaries),
-      price: p.price,
-      original_price: p.original_price,
-      on_sale: p.on_sale,
-      discountPct:
-        p.original_price && p.price && p.original_price > p.price
-          ? Math.round(((p.original_price - p.price) / p.original_price) * 100)
-          : null,
-    }));
+    const results: CompareResult[] = (data ?? []).map((p: any) => {
+      const disp = Array.isArray(p.dispensaries) ? p.dispensaries[0] : p.dispensaries;
+      return {
+        dispensaryName: disp?.name ?? "Unknown",
+        price: p.price,
+        original_price: p.original_price,
+        on_sale: p.on_sale,
+        discountPct:
+          p.original_price && p.price && p.original_price > p.price
+            ? Math.round(((p.original_price - p.price) / p.original_price) * 100)
+            : null,
+        viewUrl: buildMenuUrl(disp?.platform, disp?.slug, disp?.dutchie_url, productName, disp?.name ?? ""),
+      };
+    });
 
     setCompareModal({ productName, results, totalCount: results.length });
     setCompareLoading(false);
@@ -664,6 +687,7 @@ export default function PricesPage() {
                         <th>Price</th>
                         <th>Original</th>
                         <th>Discount</th>
+                        <th style={{ textAlign: "right" }}>Menu</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -693,6 +717,17 @@ export default function PricesPage() {
                             ) : (
                               <span style={{ color: "var(--muted)", fontFamily: "Space Mono, monospace", fontSize: "11px" }}>—</span>
                             )}
+                          </td>
+                          <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                            <span className="pro-badge">PRO</span>
+                            <a
+                              href={r.viewUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="view-menu-link"
+                            >
+                              View Menu →
+                            </a>
                           </td>
                         </tr>
                       ))}
