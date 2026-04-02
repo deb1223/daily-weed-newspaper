@@ -156,7 +156,7 @@ async function getTopDeals(): Promise<DealProduct[]> {
     .not("price", "is", null)
     .limit(300);
 
-  return ((data ?? []) as Product[])
+  const sorted = ((data ?? []) as Product[])
     .map((p) => {
       const orig = Number(p.original_price);
       const sale = Number(p.price);
@@ -168,7 +168,20 @@ async function getTopDeals(): Promise<DealProduct[]> {
     })
     .filter((p) => p.discountPct >= 10)
     .sort((a, b) => b.discountPct - a.discountPct)
-    .slice(0, 5);
+    .slice(0, 30);
+
+  // Deduplicate: per brand + category + dispensary, keep only the best (first after sort)
+  const seen = new Set<string>();
+  const deduped: DealProduct[] = [];
+  for (const p of sorted) {
+    const key = `${p.brand ?? ""}|${p.category ?? ""}|${p.dispensary_id}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(p);
+    }
+    if (deduped.length === 5) break;
+  }
+  return deduped;
 }
 
 // ─── AVG BY CATEGORY ─────────────────────────────────────────
