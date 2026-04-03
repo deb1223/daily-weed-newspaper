@@ -36,7 +36,7 @@ const ZIGGY_DEEPER_CUTS = [
   "If a dispensary's 'deal of the day' is $5 off something that was already overpriced, that's not a deal. That's an insult wearing a discount badge.",
 ];
 
-const CHART_COLORS = ["#2d6a4f", "#2a6e3f", "#1a1008", "#6b5e45", "#2d6a4f", "#2a6e3f", "#1a1008"];
+const CHART_COLORS = ["#34a529", "#34a529", "#1a1008", "#6b5e45", "#34a529", "#34a529", "#1a1008"];
 
 export default function Page2({ data }: { data: PageData }) {
   const { avgByCategory, dailyBrief } = data;

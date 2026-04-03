@@ -3,6 +3,10 @@
     {
       "path": "/api/generate-brief",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/scrape",
+      "schedule": "0 * * * *"
     }
   ]
 }

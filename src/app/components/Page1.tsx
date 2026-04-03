@@ -364,7 +364,7 @@ export default function Page1({ data }: { data: PageData }) {
                       topDeals[0].price
                     );
                     return mgpd !== null ? (
-                      <span style={{ fontFamily: "Space Mono, monospace", fontSize: "12px", color: "#2d6a4f", marginLeft: "8px", fontWeight: 400 }}>
+                      <span style={{ fontFamily: "Space Mono, monospace", fontSize: "12px", color: "#34a529", marginLeft: "8px", fontWeight: 400 }}>
                         · {mgpd.toFixed(1)} mg/$
                       </span>
                     ) : null;

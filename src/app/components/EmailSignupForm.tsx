@@ -32,9 +32,9 @@ export default function EmailSignupForm({ tier = "free", buttonText = "Get Pro â
       <div style={{
         fontFamily: "Space Mono, monospace",
         fontSize: "11px",
-        color: "#2d6a4f",
+        color: "#34a529",
         padding: "12px",
-        border: "1px solid #2d6a4f",
+        border: "1px solid #34a529",
         background: "var(--aged)",
         lineHeight: 1.5,
       }}>

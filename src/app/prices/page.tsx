@@ -32,6 +32,7 @@ interface CompareResult {
   on_sale: boolean;
   discountPct: number | null;
   viewUrl: string;
+  productUrl: string | null;
 }
 
 type SortField = "price" | "thc" | "discount" | "size" | "value";
@@ -247,13 +248,6 @@ export default function PricesPage() {
   const filteredProducts = useMemo(() => {
     let rows = allProducts;
 
-    // Require weight_grams and thc_percentage unless it's an Accessory
-    rows = rows.filter((p) => {
-      const isAccessory = CAT_MAP["Accessories"].includes(p.category ?? "");
-      if (isAccessory) return true;
-      return (p.weight_grams != null && Number(p.weight_grams) > 0) && p.thc_percentage != null;
-    });
-
     // Text search: name OR brand
     if (query.trim()) {
       const q = query.trim().toLowerCase();
@@ -436,11 +430,13 @@ export default function PricesPage() {
 
     const { data } = await supabase
       .from("products")
-      .select("price, original_price, on_sale, dispensaries(name, platform, slug, dutchie_url)")
+      .select("price, original_price, on_sale, product_url, dispensaries(name, platform, slug, dutchie_url)")
       .ilike("name", productName)
       .eq("in_stock", true)
       .order("price", { ascending: true })
       .limit(50);
+
+    console.log('[compare] raw[0]:', JSON.stringify(data?.[0]));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const results: CompareResult[] = (data ?? []).map((p: any) => {
@@ -455,18 +451,13 @@ export default function PricesPage() {
             ? Math.round(((p.original_price - p.price) / p.original_price) * 100)
             : null,
         viewUrl: buildMenuUrl(disp?.platform, disp?.slug, disp?.dutchie_url, productName, disp?.name ?? ""),
+        productUrl: p.product_url || null,
       };
     });
 
     setCompareModal({ productName, results, totalCount: results.length });
     setCompareLoading(false);
   };
-
-  const today = new Date().toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
 
   const searchGridCols = showSizeFilter
     ? "1fr auto auto auto auto"
@@ -481,7 +472,7 @@ export default function PricesPage() {
           <div className="breadcrumb">
             Home → Price Intelligence Dashboard
             <span style={{ marginLeft: "16px", color: "var(--muted)" }}>
-              {loading ? "Loading…" : `${totalFiltered.toLocaleString()} products`} &middot; Updated {today}
+              {loading ? "Loading…" : `${totalFiltered.toLocaleString()} products`} &middot; Updated hourly
             </span>
           </div>
         </Link>
@@ -718,7 +709,7 @@ export default function PricesPage() {
                 <th onClick={() => handleSort("price")}>Price{sortIndicator("price")}</th>
                 <th
                   onClick={() => handleSort("value")}
-                  style={{ cursor: "pointer", color: sortField === "value" ? "#2d6a4f" : undefined, position: "relative" }}
+                  style={{ cursor: "pointer", color: sortField === "value" ? "#34a529" : undefined, position: "relative" }}
                 >
                   mg/${sortField === "value" ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
                   {valueSortMsg && (
@@ -876,7 +867,7 @@ export default function PricesPage() {
                         <th>Price</th>
                         <th>Original</th>
                         <th>Discount</th>
-                        <th style={{ textAlign: "right" }}>Menu</th>
+                        <th style={{ textAlign: "right" }}>Link</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -910,12 +901,12 @@ export default function PricesPage() {
                           <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                             <span className="pro-badge">PRO</span>
                             <a
-                              href={r.viewUrl}
+                              href={r.productUrl || r.viewUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="view-menu-link"
                             >
-                              View Menu →
+                              {r.productUrl ? "View Product →" : "View Menu →"}
                             </a>
                           </td>
                         </tr>

@@ -14,7 +14,7 @@ Public tagline: "We tell you what's worth smoking and what's corporate robbery."
 - Savage but accurate. Gen-Z energy but not cringe.
 - Calls out bad prices, celebrates real deals, never mean to people — only to bad prices
 - Visual (v2): anime-style illustrated hand, bold flat illustration, cel shading
-- Signature color: forest green #2d6a4f
+- Signature color: Bud Green #34a529
 
 ## Supporting Characters
 **Big Mike**
@@ -33,16 +33,17 @@ Public tagline: "We tell you what's worth smoking and what's corporate robbery."
   Saved $30 on the eighth. Math is math."
 
 ## Color Palette
---newsprint: #f4f0e4    (page background — aged paper)
+--newsprint: #f4f0e4    (main page background — warm aged paper)
 --ink: #1a1008          (primary text — near black with warmth)
---accent: #2d6a4f       (Ziggy's forest green — PRIMARY brand color)
---deal-green: #2d6a4f   (same as accent — deals, prices, CTAs)
---aged: #e8e0cc         (secondary surfaces, search zones)
+--accent: #34a529       (Bud Green — PRIMARY brand color, headers, Ziggy highlights)
+--deal-green: #34a529   (same as accent)
+--aged: #f0e9d9         (secondary surfaces, card backgrounds — steps down from newsprint)
 --muted: #6b5e45        (secondary text, labels)
---ticker-red: #c8390a   (ONLY used on breaking news ticker bar)
+--ticker-red: #d62828   (Newspaper Red — buttons, sale badges, urgency CTAs)
+--deep-forest: #13240f  (deep accents, footers, heavy text backgrounds)
 
-Rule: red (#c8390a) appears NOWHERE except the ticker bar background.
-Everything else uses forest green.
+Rule: red (#d62828) is now allowed on buttons, sale badges, and urgency elements — not ticker-only.
+Deep forest (#13240f) replaces the old dark usage of #2d6a4f in footers/backgrounds.
 
 ## Typography
 - UnifrakturMaguntia — masthead ONLY ("Daily Weed Newspaper" title)
@@ -98,7 +99,7 @@ The glove unlock system (v2 — build after v1 is stable):
 - Used for page-turn animation instead of CSS corner curl
 - Skin tone options: 6 base tones
 - Glove merch: SVGs → print-on-demand t-shirts, hoodies
-- Ziggy's default glove: forest green #2d6a4f
+- Ziggy's default glove: Bud Green #34a529
 
 ## Merch Vision
 - Forest green hoodie, white UnifrakturMaguntia "Daily Weed Newspaper" across chest

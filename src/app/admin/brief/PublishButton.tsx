@@ -21,7 +21,7 @@ export default function PublishButton({ date, secret }: { date: string; secret: 
 
   if (status === "done") {
     return (
-      <div style={{ fontFamily: "Space Mono, monospace", fontSize: "13px", color: "#2d6a4f", padding: "12px 24px", border: "2px solid #2d6a4f", display: "inline-block" }}>
+      <div style={{ fontFamily: "Space Mono, monospace", fontSize: "13px", color: "#34a529", padding: "12px 24px", border: "2px solid #34a529", display: "inline-block" }}>
         ✓ Published. Brief is live.
       </div>
     );
@@ -29,7 +29,7 @@ export default function PublishButton({ date, secret }: { date: string; secret: 
 
   if (status === "error") {
     return (
-      <div style={{ fontFamily: "Space Mono, monospace", fontSize: "13px", color: "#c8390a", padding: "12px 24px", border: "2px solid #c8390a", display: "inline-block" }}>
+      <div style={{ fontFamily: "Space Mono, monospace", fontSize: "13px", color: "#d62828", padding: "12px 24px", border: "2px solid #d62828", display: "inline-block" }}>
         ✕ Publish failed. Check console.
       </div>
     );

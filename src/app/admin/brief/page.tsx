@@ -65,16 +65,16 @@ export default async function AdminBriefPage({
       ) : (
         <>
           {/* Status + publish */}
-          <div style={{ display: "flex", alignItems: "center", gap: "24px", marginBottom: "32px", padding: "16px", background: brief.status === "published" ? "#eef5eb" : "#e8e0cc", border: "1px solid #1a1008" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "24px", marginBottom: "32px", padding: "16px", background: brief.status === "published" ? "#eef5eb" : "#f0e9d9", border: "1px solid #1a1008" }}>
             <div>
               <div style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b5e45" }}>Status</div>
-              <div style={{ fontFamily: "Space Mono, monospace", fontSize: "14px", fontWeight: 700, color: brief.status === "published" ? "#2d6a4f" : "#1a1008" }}>
+              <div style={{ fontFamily: "Space Mono, monospace", fontSize: "14px", fontWeight: 700, color: brief.status === "published" ? "#34a529" : "#1a1008" }}>
                 {brief.status.toUpperCase()}
               </div>
             </div>
             <div style={{ marginLeft: "auto" }}>
               {brief.status === "published" ? (
-                <div style={{ fontFamily: "Space Mono, monospace", fontSize: "13px", color: "#2d6a4f" }}>✓ Already published — live on site</div>
+                <div style={{ fontFamily: "Space Mono, monospace", fontSize: "13px", color: "#34a529" }}>✓ Already published — live on site</div>
               ) : (
                 <PublishButton date={today} secret={secret} />
               )}

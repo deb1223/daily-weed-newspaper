@@ -57,7 +57,7 @@ function welcomeEmailHtml(tier: string): string {
   <!-- HEADLINE -->
   <tr>
     <td style="padding:28px 32px 0;">
-      <div style="font-family:'Playfair Display',Georgia,serif;font-size:10px;text-transform:uppercase;letter-spacing:0.15em;color:#2d6a4f;border-bottom:2px solid #2d6a4f;padding-bottom:4px;margin-bottom:12px;">
+      <div style="font-family:'Playfair Display',Georgia,serif;font-size:10px;text-transform:uppercase;letter-spacing:0.15em;color:#34a529;border-bottom:2px solid #34a529;padding-bottom:4px;margin-bottom:12px;">
         Breaking
       </div>
       <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:28px;font-weight:900;color:#1a1008;line-height:1.15;margin:0 0 16px;">
@@ -96,7 +96,7 @@ function welcomeEmailHtml(tier: string): string {
       <p style="font-family:Georgia,serif;font-size:13px;font-style:italic;line-height:1.7;color:#6b5e45;margin:0 0 8px;">
         &ldquo;Don't pay Strip prices. Don't buy things you didn't look up first. Check the site before you get in the Uber. That's it. That's all I ask.&rdquo;
       </p>
-      <p style="font-family:'Space Mono',monospace,monospace;font-size:10px;color:#2d6a4f;margin:0;">
+      <p style="font-family:'Space Mono',monospace,monospace;font-size:10px;color:#34a529;margin:0;">
         — Ziggy, Lead Correspondent
       </p>
     </td>

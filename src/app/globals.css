@@ -5,10 +5,12 @@
 :root {
   --newsprint: #f4f0e4;
   --ink: #1a1008;
-  --accent: #2d6a4f;
-  --deal-green: #2a6e3f;
-  --aged: #e8e0cc;
+  --accent: #34a529;
+  --deal-green: #34a529;
+  --aged: #f0e9d9;
   --muted: #6b5e45;
+  --ticker-red: #d62828;
+  --deep-forest: #13240f;
 }
 
 *, *::before, *::after {
@@ -93,7 +95,7 @@ body::after {
 
 /* ─── TICKER ────────────────────────────────────────────────── */
 .ticker-bar {
-  background: #c8390a;
+  background: var(--ticker-red);
   color: #fff;
   font-family: 'Space Mono', monospace;
   font-size: 12px;
@@ -698,14 +700,14 @@ body::after {
 .td-value {
   font-family: 'Space Mono', monospace;
   font-size: 12px;
-  color: #2d6a4f;
+  color: #34a529;
   white-space: nowrap;
 }
 
 .view-menu-link {
   font-family: 'Space Mono', monospace;
   font-size: 10px;
-  color: #2d6a4f;
+  color: #34a529;
   text-decoration: none;
   margin-left: 6px;
 }
