@@ -706,6 +706,7 @@ export default function PricesPage() {
             {totalFiltered.toLocaleString()} products
           </div>
 
+          <div style={{ overflowX: "auto" }}>
           <table className="results-table">
             <thead>
               <tr>
@@ -740,7 +741,11 @@ export default function PricesPage() {
                   <tr key={p.id || i} className={discount ? "on-sale" : ""}>
                     <td>
                       <span className="td-product-name">{p.name}</span>
-                      {p.brand && <span className="td-brand">{p.brand}</span>}
+                      {(p.brand || p.category) && (
+                        <span className="td-brand">
+                          {[p.brand, p.category].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <span className="td-size">{sizeDisplay}</span>
@@ -785,6 +790,7 @@ export default function PricesPage() {
               })}
             </tbody>
           </table>
+          </div>
 
           {totalPages > 1 && (
             <div className="pagination">
