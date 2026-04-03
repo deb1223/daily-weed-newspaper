@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageData } from "@/lib/data";
-import { displayProductSize } from "@/lib/format";
+import { displayProductSize, calcMgPerDollar } from "@/lib/format";
+import EmailSignupForm from "./EmailSignupForm";
 
 const ZIGGY_LINERS = [
   "these idiots finally remembered how to run a sale",
@@ -26,7 +27,8 @@ const ZIGGY_LINERS = [
 ];
 
 export default function Page1({ data }: { data: PageData }) {
-  const { stats, categoryWinners, topDeals } = data;
+  const { stats, categoryWinners, topDeals, dailyBrief } = data;
+  const brief = dailyBrief?.brief_json ?? null;
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -35,13 +37,19 @@ export default function Page1({ data }: { data: PageData }) {
     day: "numeric",
   });
 
+  // Edition #: days since April 1 2026 launch
+  const launchDate = new Date("2026-04-01T00:00:00Z");
+  const editionNum = (Math.max(0, Math.floor((Date.now() - launchDate.getTime()) / 86400000)) + 1)
+    .toString()
+    .padStart(3, "0");
+
   return (
     <>
       {/* MASTHEAD */}
       <header className="masthead">
         <div className="masthead-topbar">
           <span>Las Vegas, Nevada</span>
-          <span>
+          <span className="masthead-tagline">
             We tell you what&apos;s worth smoking and what&apos;s corporate
             robbery
           </span>
@@ -53,7 +61,7 @@ export default function Page1({ data }: { data: PageData }) {
           Wallet
         </p>
         <p className="edition-bar">
-          Edition #001 &middot; {stats.dispensaryCount} Dispensaries &middot;{" "}
+          Edition #{editionNum} &middot; {stats.dispensaryCount} Dispensaries &middot;{" "}
           {stats.totalProducts.toLocaleString()} Products &middot; Las Vegas,
           Nevada
         </p>
@@ -65,10 +73,12 @@ export default function Page1({ data }: { data: PageData }) {
           ★ ZIGGY REPORT: Strip dispensaries still charging 2022 prices
           ★&nbsp;&nbsp; {stats.onSaleCount.toLocaleString()} products on sale
           right now ★&nbsp;&nbsp; Cheapest spotted at $
-          {stats.minPrice.toFixed(2)} ★&nbsp;&nbsp; Avg price across all
-          products: ${stats.avgPrice.toFixed(2)} ★&nbsp;&nbsp; ★ ZIGGY REPORT:
-          Strip dispensaries still charging 2022 prices ★&nbsp;&nbsp;{" "}
-          {stats.onSaleCount.toLocaleString()} products on sale right now
+          {stats.minPrice.toFixed(2)} ★&nbsp;&nbsp; Avg price: ${stats.avgPrice.toFixed(2)}
+          {topDeals[0] && (
+            <>&nbsp;&nbsp; ★ TOP DEAL: {topDeals[0].name} — {topDeals[0].discountPct}% OFF at {topDeals[0].dispensaries?.name}</>
+          )}
+          &nbsp;&nbsp; ★ ZIGGY REPORT: Strip dispensaries still charging 2022 prices
+          ★&nbsp;&nbsp; {stats.onSaleCount.toLocaleString()} products on sale right now
           ★&nbsp;&nbsp; Cheapest spotted at ${stats.minPrice.toFixed(2)} ★
         </span>
       </div>
@@ -171,11 +181,7 @@ export default function Page1({ data }: { data: PageData }) {
               Ziggy&apos;s Savage Corner
             </span>
             <p style={{ marginTop: "8px", fontSize: "13px", fontStyle: "italic", lineHeight: 1.6 }}>
-              &ldquo;I walked into a Strip dispensary and asked for their best
-              deal. The budtender pointed to a $65 eighth. I asked if that was a
-              joke. He said that was their loyalty price. I have not stopped
-              laughing since. The market is a crime scene, and I am the
-              detective.&rdquo;
+              &ldquo;{brief?.savageCorner ?? "I walked into a Strip dispensary and asked for their best deal. The budtender pointed to a $65 eighth. I asked if that was a joke. He said that was their loyalty price. I have not stopped laughing since. The market is a crime scene, and I am the detective."}&rdquo;
             </p>
             <p style={{ marginTop: "8px", fontSize: "11px", color: "#d4af37" }}>
               — Ziggy, Staff Correspondent
@@ -222,12 +228,7 @@ export default function Page1({ data }: { data: PageData }) {
               lineHeight: "1.7",
             }}
           >
-            Every morning, Ziggy rises before dawn, loads the database, and
-            hunts the Las Vegas cannabis market for proof that dispensaries are
-            still capable of human decency. Some days the news is grim. Today,
-            however, there are deals worth knowing about. The following five
-            products represent the current market doing its job. Buy them before
-            someone notices.
+            {brief?.intro ?? "Every morning, Ziggy rises before dawn, loads the database, and hunts the Las Vegas cannabis market for proof that dispensaries are still capable of human decency. Some days the news is grim. Today, however, there are deals worth knowing about. The following five products represent the current market doing its job. Buy them before someone notices."}
           </p>
 
           {topDeals.length === 0 ? (
@@ -284,7 +285,7 @@ export default function Page1({ data }: { data: PageData }) {
                   )}
                 </div>
                 <div className="deal-gork-line">
-                  {ZIGGY_LINERS[i % ZIGGY_LINERS.length]}
+                  {brief?.dealCommentary?.[i]?.quip ?? ZIGGY_LINERS[i % ZIGGY_LINERS.length]}
                 </div>
               </div>
             ))
@@ -333,12 +334,7 @@ export default function Page1({ data }: { data: PageData }) {
               <li>Ziggy&apos;s exclusive weekly deep dive</li>
               <li>Export to CSV for the truly obsessed</li>
             </ul>
-            <input
-              className="email-input"
-              type="email"
-              placeholder="your@email.com"
-            />
-            <button className="cta-button">Get Pro — $9/mo</button>
+            <EmailSignupForm tier="pro" buttonText="Get Pro — $9/mo" />
           </div>
 
           {/* Deal of the Day */}
@@ -359,6 +355,20 @@ export default function Page1({ data }: { data: PageData }) {
                 </div>
                 <div className="deal-of-day-price">
                   ${Number(topDeals[0].price).toFixed(2)}
+                  {(() => {
+                    const mgpd = calcMgPerDollar(
+                      topDeals[0].name,
+                      topDeals[0].category,
+                      topDeals[0].thc_percentage,
+                      topDeals[0].weight_grams,
+                      topDeals[0].price
+                    );
+                    return mgpd !== null ? (
+                      <span style={{ fontFamily: "Space Mono, monospace", fontSize: "12px", color: "#2d6a4f", marginLeft: "8px", fontWeight: 400 }}>
+                        · {mgpd.toFixed(1)} mg/$
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
                 <div
                   style={{
@@ -393,7 +403,7 @@ export default function Page1({ data }: { data: PageData }) {
           {/* Ziggy's Rating */}
           <div className="gork-rating">
             <span className="kicker">Ziggy&apos;s Market Rating</span>
-            <div className="rating-number">7.8</div>
+            <div className="rating-number">{brief?.marketRating ?? 7.8}</div>
             <div
               style={{
                 fontFamily: "Space Mono, monospace",
@@ -412,8 +422,7 @@ export default function Page1({ data }: { data: PageData }) {
                 color: "var(--muted)",
               }}
             >
-              &ldquo;Prices are improving. Slowly. Like a high that takes 45
-              minutes.&rdquo;
+              &ldquo;{brief?.ratingQuote ?? "Prices are improving. Slowly. Like a high that takes 45 minutes."}&rdquo;
             </p>
           </div>
         </div>
@@ -530,14 +539,7 @@ export default function Page1({ data }: { data: PageData }) {
           </div>
 
           <div style={{ marginTop: "20px" }}>
-            <input
-              className="email-input"
-              type="email"
-              placeholder="your@email.com"
-            />
-            <button className="cta-button" style={{ marginTop: "4px" }}>
-              Start Free — Upgrade Anytime
-            </button>
+            <EmailSignupForm tier="free" buttonText="Start Free — Upgrade Anytime" />
           </div>
         </div>
       </div>

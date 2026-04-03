@@ -11,6 +11,36 @@ export function extractMg(name: string): string | null {
 }
 
 /**
+ * Calculates mg of THC per dollar spent.
+ * Flower/Pre-Rolls/Concentrates/Vape: (thc% / 100 * weight_grams * 1000) / price
+ * Edibles: extracted_mg_from_name / price
+ * Everything else (Accessories, Tinctures, etc.): null
+ */
+export function calcMgPerDollar(
+  name: string,
+  category: string | null,
+  thcPercentage: number | null,
+  weightGrams: number | null,
+  price: number | null
+): number | null {
+  if (!price || Number(price) <= 0) return null;
+  const cat = (category ?? "").toLowerCase();
+
+  if (/edible/i.test(cat)) {
+    const m = name.match(/(\d+)\s*mg/i);
+    if (!m) return null;
+    return Number(m[1]) / Number(price);
+  }
+
+  if (/flower|pre.?roll|concentrate|extract|vape|vaporiz/i.test(cat)) {
+    if (!thcPercentage || !weightGrams || Number(weightGrams) <= 0) return null;
+    return (Number(thcPercentage) / 100 * Number(weightGrams) * 1000) / Number(price);
+  }
+
+  return null;
+}
+
+/**
  * Returns a size/dose display string for a product.
  * Used in both the homepage deal boxes and the /prices table.
  */

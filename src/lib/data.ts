@@ -50,12 +50,29 @@ export interface AvgByCategory {
   avg: number;
 }
 
+export interface DailyBriefJson {
+  intro: string;
+  dealCommentary: { productId: string; quip: string }[];
+  savageCorner: string;
+  bigMikeTea: string[];
+  touristTerry: string;
+  marketRating: number;
+  ratingQuote: string;
+}
+
+export interface DailyBrief {
+  date: string;
+  brief_json: DailyBriefJson;
+  status: string;
+}
+
 export interface PageData {
   stats: SiteStats;
   categoryWinners: CategoryWinner[];
   topDeals: DealProduct[];
   avgByCategory: AvgByCategory[];
   stripDeals: DealProduct[];
+  dailyBrief: DailyBrief | null;
 }
 
 // ─── CATEGORY MAPPINGS ────────────────────────────────────────
@@ -226,13 +243,17 @@ async function getTopDeals(): Promise<DealProduct[]> {
     .sort((a, b) => b.discountPct - a.discountPct)
     .slice(0, 30);
 
-  // Deduplicate: per brand + category + dispensary, keep only the best (first after sort)
+  // Deduplicate: per brand+category+dispensary, max 2 per dispensary
   const seen = new Set<string>();
+  const dispensaryCount = new Map<string, number>();
   const deduped: DealProduct[] = [];
   for (const p of sorted) {
+    const count = dispensaryCount.get(p.dispensary_id) ?? 0;
+    if (count >= 2) continue;
     const key = `${p.brand ?? ""}|${p.category ?? ""}|${p.dispensary_id}`;
     if (!seen.has(key)) {
       seen.add(key);
+      dispensaryCount.set(p.dispensary_id, count + 1);
       deduped.push(p);
     }
     if (deduped.length === 5) break;
@@ -315,16 +336,29 @@ async function getStripDeals(): Promise<DealProduct[]> {
     .slice(0, 6);
 }
 
+// ─── DAILY BRIEF ─────────────────────────────────────────────
+async function getDailyBrief(): Promise<DailyBrief | null> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data } = await supabase
+    .from("daily_briefs")
+    .select("date, brief_json, status")
+    .eq("date", today)
+    .eq("status", "published")
+    .single();
+  return data ?? null;
+}
+
 // ─── MAIN FETCH ───────────────────────────────────────────────
 export async function getAllPageData(): Promise<PageData> {
-  const [stats, categoryWinners, topDeals, avgByCategory, stripDeals] =
+  const [stats, categoryWinners, topDeals, avgByCategory, stripDeals, dailyBrief] =
     await Promise.all([
       getStats(),
       getCategoryWinners(),
       getTopDeals(),
       getAvgByCategory(),
       getStripDeals(),
+      getDailyBrief(),
     ]);
 
-  return { stats, categoryWinners, topDeals, avgByCategory, stripDeals };
+  return { stats, categoryWinners, topDeals, avgByCategory, stripDeals, dailyBrief };
 }

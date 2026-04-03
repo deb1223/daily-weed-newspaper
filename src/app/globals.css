@@ -467,9 +467,18 @@ body::after {
 
 .mini-masthead {
   border-bottom: 3px double var(--ink);
-  padding: 12px 0;
   margin-bottom: 24px;
 }
+
+.mini-masthead-link {
+  display: block;
+  padding: 12px 0;
+  text-decoration: none;
+  cursor: pointer;
+  color: inherit;
+  transition: background 0.15s ease;
+}
+.mini-masthead-link:hover { background: var(--aged); }
 
 .mini-title {
   font-family: 'UnifrakturMaguntia', cursive;
@@ -481,13 +490,8 @@ body::after {
   font-family: 'UnifrakturMaguntia', cursive;
   font-size: clamp(24px, 4vw, 48px);
   line-height: 1;
-  display: block;
   color: var(--ink);
-  text-decoration: none;
-  cursor: pointer;
-  transition: color 0.15s ease;
 }
-.mini-title-link:hover { color: #2d6a4f; }
 
 .breadcrumb {
   font-family: 'Space Mono', monospace;
@@ -691,6 +695,13 @@ body::after {
   white-space: nowrap;
 }
 
+.td-value {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: #2d6a4f;
+  white-space: nowrap;
+}
+
 .view-menu-link {
   font-family: 'Space Mono', monospace;
   font-size: 10px;
@@ -782,6 +793,16 @@ body::after {
   .search-inputs { grid-template-columns: 1fr; }
   .search-select { min-width: unset; }
   .search-button { width: 100%; }
+  /* Page 3 responsive */
+  .p3-grid { grid-template-columns: 1fr !important; }
+  .p3-grid > .p3-divider { display: none; }
+  .p3-dispensary-grid { grid-template-columns: 1fr !important; }
+  .p3-col-left { padding: 24px 0 0 0 !important; }
+  .p3-col-right { padding: 0 0 24px 0 !important; }
+}
+
+@media (max-width: 768px) {
+  .masthead-tagline { display: none; }
 }
 
 @media (max-width: 600px) {

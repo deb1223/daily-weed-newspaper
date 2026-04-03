@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { displayProductSize } from "@/lib/format";
+import { displayProductSize, calcMgPerDollar } from "@/lib/format";
 
 interface Dispensary {
   name: string;
@@ -34,7 +34,7 @@ interface CompareResult {
   viewUrl: string;
 }
 
-type SortField = "price" | "thc" | "discount" | "size";
+type SortField = "price" | "thc" | "discount" | "size" | "value";
 type SortDir = "asc" | "desc";
 
 const CATEGORIES = [
@@ -186,6 +186,10 @@ export default function PricesPage() {
   const [sortField, setSortField] = useState<SortField>("price");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
+  // Pro gate state for value sort tooltip
+  const isPro = true; // wire to auth later
+  const [valueSortMsg, setValueSortMsg] = useState(false);
+
   // Compare modal
   const [compareModal, setCompareModal] = useState<{
     productName: string;
@@ -243,6 +247,13 @@ export default function PricesPage() {
   const filteredProducts = useMemo(() => {
     let rows = allProducts;
 
+    // Require weight_grams and thc_percentage unless it's an Accessory
+    rows = rows.filter((p) => {
+      const isAccessory = CAT_MAP["Accessories"].includes(p.category ?? "");
+      if (isAccessory) return true;
+      return (p.weight_grams != null && Number(p.weight_grams) > 0) && p.thc_percentage != null;
+    });
+
     // Text search: name OR brand
     if (query.trim()) {
       const q = query.trim().toLowerCase();
@@ -296,6 +307,14 @@ export default function PricesPage() {
         const va = disc(a), vb = disc(b);
         return sortDir === "desc" ? vb - va : va - vb;
       }
+      if (sortField === "value") {
+        const va = calcMgPerDollar(a.name, a.category, a.thc_percentage, a.weight_grams, a.price);
+        const vb = calcMgPerDollar(b.name, b.category, b.thc_percentage, b.weight_grams, b.price);
+        if (va === null && vb === null) return 0;
+        if (va === null) return 1;
+        if (vb === null) return -1;
+        return sortDir === "desc" ? vb - va : va - vb;
+      }
       if (sortField === "size") {
         if (category === "Edibles" || category === "Tinctures") {
           const getMg = (p: Product) => {
@@ -323,6 +342,38 @@ export default function PricesPage() {
   const pageProducts = filteredProducts.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(totalFiltered / PAGE_SIZE);
 
+  // ─── HOT TAKE BANNER ──────────────────────────────────────
+  const ZIGGY_HOT_TAKES = [
+    "Ziggy has reviewed the market. This is the one. Do not overthink it.",
+    "This discount is real. Ziggy verified it personally. Go.",
+    "The market produces deals like this maybe twice a week. This is one of them.",
+    "Ziggy does not endorse products. Ziggy endorses math. The math here is good.",
+    "You will not find a better price-per-unit on this right now. Ziggy checked.",
+    "This is what a real deal looks like. Note the difference. Remember it.",
+    "Ziggy has seen a thousand dispensary promotions. This one passes inspection.",
+    "The discount is not marketing. The discount is real. The difference is significant.",
+    "Other dispensaries are charging more for the same category right now. Just noting.",
+    "Ziggy's hot take: buy it. Ziggy's cold take: also buy it.",
+  ];
+
+  const hotDeal = useMemo(() => {
+    const candidates = allProducts
+      .filter((p) => p.on_sale && p.original_price != null && p.price != null && Number(p.original_price) > Number(p.price))
+      .map((p) => ({
+        ...p,
+        discountPct: Math.round(((Number(p.original_price) - Number(p.price)) / Number(p.original_price)) * 100),
+      }))
+      .filter((p) => p.discountPct >= 15)
+      .sort((a, b) => b.discountPct - a.discountPct);
+    return candidates[0] ?? null;
+  }, [allProducts]);
+
+  const hotTakeIndex = useMemo(() => {
+    if (!hotDeal) return 0;
+    return Math.abs(hotDeal.id.charCodeAt(0) + hotDeal.id.charCodeAt(1)) % ZIGGY_HOT_TAKES.length;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotDeal]);
+
   // ─── HANDLERS ─────────────────────────────────────────────
   const handleCategoryChange = (val: string) => {
     setCategory(val);
@@ -330,6 +381,23 @@ export default function PricesPage() {
   };
 
   const handleSort = (field: SortField) => {
+    if (field === "value") {
+      if (!isPro) {
+        setValueSortMsg(true);
+        setTimeout(() => setValueSortMsg(false), 3000);
+        return;
+      }
+      if (sortField !== "value") {
+        setSortField("value");
+        setSortDir("desc"); // first click: highest mg/$ first
+      } else if (sortDir === "desc") {
+        setSortDir("asc");
+      } else {
+        setSortField("price");
+        setSortDir("asc");
+      }
+      return;
+    }
     if (field === "size") {
       if (sortField !== "size") {
         setSortField("size");
@@ -408,13 +476,15 @@ export default function PricesPage() {
     <div className="prices-page">
       {/* Mini Masthead */}
       <div className="mini-masthead">
-        <Link href="/" className="mini-title-link">Daily Weed Newspaper</Link>
-        <div className="breadcrumb">
-          <Link href="/">Home</Link> → Price Intelligence Dashboard
-          <span style={{ marginLeft: "16px", color: "var(--muted)" }}>
-            {loading ? "Loading…" : `${totalFiltered.toLocaleString()} products`} &middot; Updated {today}
-          </span>
-        </div>
+        <Link href="/" className="mini-masthead-link">
+          <div className="mini-title-link">Daily Weed Newspaper</div>
+          <div className="breadcrumb">
+            Home → Price Intelligence Dashboard
+            <span style={{ marginLeft: "16px", color: "var(--muted)" }}>
+              {loading ? "Loading…" : `${totalFiltered.toLocaleString()} products`} &middot; Updated {today}
+            </span>
+          </div>
+        </Link>
       </div>
 
       {/* Search Zone */}
@@ -518,6 +588,104 @@ export default function PricesPage() {
         </button>
       </div>
 
+      {/* Ziggy's Hot Take Banner */}
+      {!loading && hotDeal && (
+        <div
+          style={{
+            margin: "0 24px 0",
+            padding: "14px 20px",
+            background: "var(--aged)",
+            borderLeft: "4px solid var(--deal-green)",
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+            <span
+              style={{
+                fontFamily: "Space Mono, monospace",
+                fontSize: "9px",
+                textTransform: "uppercase",
+                letterSpacing: "0.12em",
+                color: "var(--deal-green)",
+                fontWeight: 700,
+              }}
+            >
+              Ziggy&apos;s Hot Take
+            </span>
+          </div>
+          <div style={{ flex: 1, minWidth: "200px" }}>
+            <span
+              style={{
+                fontFamily: "Playfair Display, serif",
+                fontSize: "14px",
+                fontWeight: 700,
+                color: "var(--ink)",
+              }}
+            >
+              {hotDeal.name}
+            </span>
+            <span
+              style={{
+                fontFamily: "Space Mono, monospace",
+                fontSize: "11px",
+                color: "var(--muted)",
+                marginLeft: "8px",
+              }}
+            >
+              @ {getDispName(hotDeal.dispensaries)}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "6px", flexShrink: 0 }}>
+            <span style={{ fontFamily: "Space Mono, monospace", fontSize: "16px", fontWeight: 700, color: "var(--deal-green)" }}>
+              ${Number(hotDeal.price).toFixed(2)}
+            </span>
+            <span style={{ fontFamily: "Space Mono, monospace", fontSize: "11px", color: "var(--muted)", textDecoration: "line-through" }}>
+              ${Number(hotDeal.original_price).toFixed(2)}
+            </span>
+            <span
+              style={{
+                background: "var(--deal-green)",
+                color: "#fff",
+                fontFamily: "Space Mono, monospace",
+                fontSize: "10px",
+                fontWeight: 700,
+                padding: "2px 6px",
+              }}
+            >
+              -{hotDeal.discountPct}%
+            </span>
+          </div>
+          <div
+            style={{
+              fontFamily: "Source Serif 4, serif",
+              fontSize: "12px",
+              fontStyle: "italic",
+              color: "var(--muted)",
+              flexBasis: "100%",
+              borderTop: "1px solid rgba(26,16,8,0.12)",
+              paddingTop: "8px",
+              marginTop: "4px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "16px",
+            }}
+          >
+            <span>&ldquo;{ZIGGY_HOT_TAKES[hotTakeIndex]}&rdquo;</span>
+            <button
+              className="filter-chip active"
+              style={{ flexShrink: 0, fontSize: "10px" }}
+              onClick={() => setSaleOnly(true)}
+            >
+              See all deals →
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Results */}
       {loading ? (
         <div className="gork-empty">
@@ -542,12 +710,22 @@ export default function PricesPage() {
             <thead>
               <tr>
                 <th>Product</th>
-                <th>Category</th>
                 <th onClick={() => handleSort("size")} style={{ cursor: "pointer" }}>
                   Size{sortField === "size" ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
                 </th>
                 <th>Dispensary</th>
                 <th onClick={() => handleSort("price")}>Price{sortIndicator("price")}</th>
+                <th
+                  onClick={() => handleSort("value")}
+                  style={{ cursor: "pointer", color: sortField === "value" ? "#2d6a4f" : undefined, position: "relative" }}
+                >
+                  mg/${sortField === "value" ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
+                  {valueSortMsg && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, width: "180px", fontFamily: "Space Mono, monospace", fontSize: "9px", color: "var(--muted)", fontWeight: 400, background: "var(--paper)", border: "1px solid var(--aged)", padding: "4px 6px", zIndex: 10, lineHeight: 1.4 }}>
+                      Sort by value score is a Pro feature — $9/month
+                    </div>
+                  )}
+                </th>
                 <th onClick={() => handleSort("thc")}>THC{sortIndicator("thc")}</th>
                 <th onClick={() => handleSort("discount")}>Discount{sortIndicator("discount")}</th>
                 <th style={{ cursor: "default" }}>Compare</th>
@@ -557,14 +735,12 @@ export default function PricesPage() {
               {pageProducts.map((p, i) => {
                 const discount = calcDiscount(p);
                 const sizeDisplay = displayProductSize(p.name, p.category, p.weight_grams);
+                const mgpd = calcMgPerDollar(p.name, p.category, p.thc_percentage, p.weight_grams, p.price);
                 return (
                   <tr key={p.id || i} className={discount ? "on-sale" : ""}>
                     <td>
                       <span className="td-product-name">{p.name}</span>
                       {p.brand && <span className="td-brand">{p.brand}</span>}
-                    </td>
-                    <td>
-                      <span className="td-category">{p.category || "—"}</span>
                     </td>
                     <td>
                       <span className="td-size">{sizeDisplay}</span>
@@ -580,6 +756,13 @@ export default function PricesPage() {
                         <span className="td-orig-price">
                           ${Number(p.original_price).toFixed(2)}
                         </span>
+                      )}
+                    </td>
+                    <td>
+                      {mgpd !== null ? (
+                        <span className="td-value">{mgpd.toFixed(1)}</span>
+                      ) : (
+                        <span style={{ color: "var(--muted)", fontFamily: "Space Mono, monospace", fontSize: "12px" }}>—</span>
                       )}
                     </td>
                     <td>

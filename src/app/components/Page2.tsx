@@ -36,10 +36,11 @@ const ZIGGY_DEEPER_CUTS = [
   "If a dispensary's 'deal of the day' is $5 off something that was already overpriced, that's not a deal. That's an insult wearing a discount badge.",
 ];
 
-const CHART_COLORS = ["#c8390a", "#2a6e3f", "#1a1008", "#6b5e45", "#c8390a", "#2a6e3f", "#1a1008"];
+const CHART_COLORS = ["#2d6a4f", "#2a6e3f", "#1a1008", "#6b5e45", "#2d6a4f", "#2a6e3f", "#1a1008"];
 
 export default function Page2({ data }: { data: PageData }) {
-  const { avgByCategory } = data;
+  const { avgByCategory, dailyBrief } = data;
+  const briefTea = dailyBrief?.brief_json?.bigMikeTea ?? null;
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -145,44 +146,60 @@ export default function Page2({ data }: { data: PageData }) {
             Big Mike · Las Vegas Local · 15 years in the valley
           </div>
 
-          {BIG_MIKE_TEA.map((item, i) => (
-            <div
-              key={i}
-              style={{
-                marginBottom: "24px",
-                paddingBottom: "24px",
-                borderBottom: i < BIG_MIKE_TEA.length - 1 ? "1px solid var(--aged)" : "none",
-              }}
-            >
+          {briefTea
+            ? briefTea.map((line, i) => (
               <div
+                key={i}
                 style={{
-                  fontFamily: "Space Mono, monospace",
-                  fontSize: "9px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                  color: "var(--muted)",
-                  marginBottom: "4px",
+                  marginBottom: "24px",
+                  paddingBottom: "24px",
+                  borderBottom: i < briefTea.length - 1 ? "1px solid var(--aged)" : "none",
                 }}
               >
-                {item.dateline}
+                <p style={{ fontFamily: "Source Serif 4, serif", fontSize: "14px", lineHeight: 1.7 }}>
+                  {line}
+                </p>
               </div>
-              <h3
-                className="font-headline"
-                style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}
-              >
-                {item.headline}
-              </h3>
-              <p
+            ))
+            : BIG_MIKE_TEA.map((item, i) => (
+              <div
+                key={i}
                 style={{
-                  fontFamily: "Source Serif 4, serif",
-                  fontSize: "14px",
-                  lineHeight: 1.7,
+                  marginBottom: "24px",
+                  paddingBottom: "24px",
+                  borderBottom: i < BIG_MIKE_TEA.length - 1 ? "1px solid var(--aged)" : "none",
                 }}
               >
-                {item.body}
-              </p>
-            </div>
-          ))}
+                <div
+                  style={{
+                    fontFamily: "Space Mono, monospace",
+                    fontSize: "9px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    color: "var(--muted)",
+                    marginBottom: "4px",
+                  }}
+                >
+                  {item.dateline}
+                </div>
+                <h3
+                  className="font-headline"
+                  style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}
+                >
+                  {item.headline}
+                </h3>
+                <p
+                  style={{
+                    fontFamily: "Source Serif 4, serif",
+                    fontSize: "14px",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  {item.body}
+                </p>
+              </div>
+            ))
+          }
 
           {/* Ziggy's Deeper Cuts */}
           <div style={{ marginTop: "8px" }}>

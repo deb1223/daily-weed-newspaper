@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageData, DealProduct } from "@/lib/data";
+import EmailSignupForm from "./EmailSignupForm";
 
 const TERRY_NOTES: Record<string, string> = {
   "Thrive Cannabis Marketplace (Las Vegas Strip)":
@@ -135,7 +136,8 @@ function StripDealCard({ deal, idx }: { deal: DealProduct; idx: number }) {
 }
 
 export default function Page3({ data }: { data: PageData }) {
-  const { stripDeals, stats } = data;
+  const { stripDeals, stats, dailyBrief } = data;
+  const terryNarrative = dailyBrief?.brief_json?.touristTerry ?? null;
 
   // Group by dispensary
   const thriveDeals = stripDeals.filter((d) =>
@@ -167,6 +169,7 @@ export default function Page3({ data }: { data: PageData }) {
 
       {/* Main content: 2 columns */}
       <div
+        className="p3-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "1.4fr 1px 1fr",
@@ -176,7 +179,7 @@ export default function Page3({ data }: { data: PageData }) {
         }}
       >
         {/* LEFT: Tourist Terry's Strip Guide */}
-        <div style={{ padding: "32px 24px 32px 0" }}>
+        <div className="p3-col-left" style={{ padding: "32px 24px 32px 0" }}>
           <span className="kicker">Tourist Terry&apos;s Strip Guide</span>
           <h2
             className="font-headline"
@@ -215,14 +218,13 @@ export default function Page3({ data }: { data: PageData }) {
               marginBottom: "20px",
             }}
           >
-            I took an Uber from the Bellagio. $8 each way. Saved $30 on the eighth.
-            That&apos;s a $14 net win before I even got high. I am not a financial advisor
-            but I am a tourist who did the math and the math said: go to the
-            dispensary, don&apos;t buy it from the hotel minibar equivalent.
+            {terryNarrative ??
+              "I took an Uber from the Bellagio. $8 each way. Saved $30 on the eighth. That\u2019s a $14 net win before I even got high. I am not a financial advisor but I am a tourist who did the math and the math said: go to the dispensary, don\u2019t buy it from the hotel minibar equivalent."}
           </p>
 
           {/* Strip dispensaries */}
           <div
+            className="p3-dispensary-grid"
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
@@ -438,10 +440,10 @@ export default function Page3({ data }: { data: PageData }) {
         </div>
 
         {/* DIVIDER */}
-        <div style={{ background: "var(--ink)", margin: "24px 0" }} />
+        <div className="p3-divider" style={{ background: "var(--ink)", margin: "24px 0" }} />
 
         {/* RIGHT: Ziggy's Final Rating + Pro Upsell */}
-        <div style={{ padding: "32px 0 32px 24px" }}>
+        <div className="p3-col-right" style={{ padding: "32px 0 32px 24px" }}>
           <span className="kicker">Ziggy&apos;s Final Market Rating</span>
           <h2
             className="font-headline"
@@ -592,14 +594,7 @@ export default function Page3({ data }: { data: PageData }) {
               <li>CSV export for power users</li>
               <li>7-day free trial, cancel anytime</li>
             </ul>
-            <input
-              className="email-input"
-              type="email"
-              placeholder="your@email.com"
-            />
-            <button className="cta-button" style={{ marginTop: "4px" }}>
-              Start Free Trial
-            </button>
+            <EmailSignupForm tier="pro" buttonText="Start Free Trial" />
           </div>
 
           <div style={{ marginTop: "16px", textAlign: "center" }}>
