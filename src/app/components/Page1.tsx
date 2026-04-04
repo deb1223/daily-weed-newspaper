@@ -198,12 +198,16 @@ export default function Page1({ data }: { data: PageData }) {
                 </strong>{" "}
                 of inventory
               </div>
-              <div>Avg savings vs. MSRP: ~
+              <div>Lowest price spotted:{" "}
                 <strong style={{ color: "var(--accent)" }}>
-                  ${(stats.avgPrice * 0.3).toFixed(0)}
+                  ${stats.minPrice.toFixed(2)}
                 </strong>
               </div>
-              <div>Best city in Nevada for prices: <strong>Las Vegas</strong></div>
+              <div>Avg price across all products:{" "}
+                <strong style={{ color: "var(--ink)" }}>
+                  ${stats.avgPrice.toFixed(2)}
+                </strong>
+              </div>
             </div>
           </div>
         </div>
@@ -228,7 +232,7 @@ export default function Page1({ data }: { data: PageData }) {
               lineHeight: "1.7",
             }}
           >
-            {brief?.intro ?? "Every morning, Ziggy rises before dawn, loads the database, and hunts the Las Vegas cannabis market for proof that dispensaries are still capable of human decency. Some days the news is grim. Today, however, there are deals worth knowing about. The following five products represent the current market doing its job. Buy them before someone notices."}
+            {brief?.intro ?? "Yo. I'm Ziggy. Been smoking since 14. Calling out mid since 15. Every morning I dig through every dispensary menu in Vegas so you don't have to overpay. The market is a crime scene. I'm the detective. The following five products are the ones I actually co-sign today. You're welcome."}
           </p>
 
           {topDeals.length === 0 ? (

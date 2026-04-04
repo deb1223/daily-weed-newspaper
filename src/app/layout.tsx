@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "Daily Weed Newspaper — Cannabis Price Intelligence",
   description:
     "The only cannabis publication that actually gives a damn about your wallet. Real-time dispensary price comparison for Las Vegas.",
+  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({

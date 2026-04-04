@@ -436,8 +436,6 @@ export default function PricesPage() {
       .order("price", { ascending: true })
       .limit(50);
 
-    console.log('[compare] raw[0]:', JSON.stringify(data?.[0]));
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const results: CompareResult[] = (data ?? []).map((p: any) => {
       const disp = Array.isArray(p.dispensaries) ? p.dispensaries[0] : p.dispensaries;
@@ -931,7 +929,14 @@ export default function PricesPage() {
                         <div style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginBottom: "12px" }}>
                           $9/month · 7-day free trial · cancel anytime
                         </div>
-                        <button className="cta-button" style={{ maxWidth: "220px", margin: "0 auto", display: "block" }}>
+                        <button
+                          className="cta-button"
+                          style={{ maxWidth: "220px", margin: "0 auto", display: "block" }}
+                          onClick={async () => {
+                            const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+                            if (res.ok) { const { url } = await res.json(); window.location.href = url; }
+                          }}
+                        >
                           Start Free Trial
                         </button>
                       </div>

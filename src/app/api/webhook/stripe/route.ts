@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
-// Required: raw body for Stripe signature verification
-export const config = { api: { bodyParser: false } };
-
 function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
 }
@@ -12,7 +9,7 @@ function getStripe() {
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_KEY!
   );
 }
 

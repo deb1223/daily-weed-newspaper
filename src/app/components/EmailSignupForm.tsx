@@ -16,6 +16,17 @@ export default function EmailSignupForm({ tier = "free", buttonText = "Get Pro â
     if (!trimmed) return;
     setStatus("loading");
     try {
+      if (tier === "pro") {
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: trimmed }),
+        });
+        if (!res.ok) { setStatus("error"); return; }
+        const { url } = await res.json();
+        window.location.href = url;
+        return;
+      }
       const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -74,7 +85,7 @@ export default function EmailSignupForm({ tier = "free", buttonText = "Get Pro â
         disabled={status === "loading"}
         style={{ marginTop: "4px" }}
       >
-        {status === "loading" ? "Sending..." : buttonText}
+        {status === "loading" ? (tier === "pro" ? "Redirecting..." : "Sending...") : buttonText}
       </button>
     </>
   );
