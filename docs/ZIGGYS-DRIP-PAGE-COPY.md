@@ -22,7 +22,7 @@ I got tired of these lame “earn 2% back on your overpriced prerolls” program
 
 **Free Gifts Because We Actually Like You**
 
-- 3 months subscribed → Free custom Ziggy rolling tray shipped to your door
+- 3 months subscribed → Free Toker Poker shipped to your door (hemp wick spool + pipe poker built in — you'll actually use this one)
 - 6 months subscribed → Free premium t-shirt ($33 value)
 - 1 year subscribed → Free premium hoodie ($55 value)
 

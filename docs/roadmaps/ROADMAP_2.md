@@ -89,6 +89,7 @@ Site is LIVE at dailyweednewspaper.com
 - Curaleaf product URLs not captured (Sweed POS, non-standard)
 - Some Kannabis brand products have no THC% — missing from Dutchie source data
 - SCRAPER_PATH env var may need setting in Vercel for /api/scrape to find script
+- 3-month gift item: Toker Poker lighter sleeve (Sean Dietrich design, box of 25 @ $150 = $6 each + $4.50 shipping). Replaces rolling tray. Buy first box when approaching 25 three-month subscribers.
 
 ---
 

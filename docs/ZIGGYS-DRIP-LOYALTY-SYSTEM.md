@@ -32,7 +32,7 @@ Turn every Pro subscriber into a motivated evangelist by rewarding daily use, sh
 
 | Milestone              | Reward (completely free)                          | Notes |
 |------------------------|---------------------------------------------------|-------|
-| 3 months subscribed    | Custom Ziggy rolling tray                         | Shipped free |
+| 3 months subscribed    | Toker Poker lighter sleeve (Sean Dietrich design) — includes pipe poker tool + hemp wick spool | Shipped free |
 | 6 months subscribed    | Premium t-shirt ($33 value)                       | Shipped free |
 | 1 year subscribed      | Premium hoodie ($55 value)                        | Shipped free |
 
