@@ -11,6 +11,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@supabase/supabase-js": "^2.101.1",
+    "dotenv": "^16.6.1",
+    "playwright": "^1.58.2",
     "framer-motion": "^12.38.0",
     "next": "16.2.2",
     "react": "19.2.4",
@@ -27,6 +29,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

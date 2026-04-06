@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   const scraperPath =
     process.env.SCRAPER_PATH ??
-    path.resolve(process.cwd(), "../vegas-itinerary-pro/scripts/scrape-dispensaries.ts");
+    path.resolve(process.cwd(), "scripts/scrape-dispensaries.ts");
 
   try {
     const child = spawn("npx", ["tsx", scraperPath], {
