@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -37,6 +38,7 @@ interface CompareResult {
 
 type SortField = "price" | "thc" | "discount" | "size" | "value";
 type SortDir = "asc" | "desc";
+type HotDeal = Product & { discountPct: number };
 
 const CATEGORIES = [
   "All",
@@ -127,9 +129,10 @@ function buildMenuUrl(
   return `https://www.google.com/search?q=${encodeURIComponent(`${productName} ${dispensaryName} dispensary`)}`;
 }
 
-// ─── CLIENT-SIDE SIZE FILTER ───────────────────────────────────
-function applyClientSizeFilter(rows: Product[], cat: string, size: string): Product[] {
-  if (size === "all" || !size) return rows;
+// ─── SERVER-SIDE SIZE FILTER ───────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applySizeFilterToQuery(q: any, cat: string, size: string): any {
+  if (size === "all" || !size) return q;
 
   const gramRanges: Record<string, Record<string, [number, number]>> = {
     Flower:       { "1g": [0.85,1.15], "3.5g": [3.0,4.0], "7g": [6.0,8.0], "14g": [12.0,16.0], "28g": [24.0,32.0] },
@@ -141,30 +144,23 @@ function applyClientSizeFilter(rows: Product[], cat: string, size: string): Prod
   const ranges = gramRanges[cat];
   if (ranges?.[size]) {
     const [lo, hi] = ranges[size];
-    return rows.filter(
-      (p) => p.weight_grams != null && Number(p.weight_grams) >= lo && Number(p.weight_grams) <= hi
-    );
+    return q.gte("weight_grams", lo).lte("weight_grams", hi);
   }
 
   if (cat === "Pre-Rolls") {
-    if (size === "2pk") return rows.filter((p) => /2[\s-]?p(?:k|ack)/i.test(p.name));
-    if (size === "5pk") return rows.filter((p) => /5[\s-]?p(?:k|ack)/i.test(p.name));
+    if (size === "2pk") return q.or("name.ilike.%2-pack%,name.ilike.%2 pack%,name.ilike.%2pk%,name.ilike.%2-pk%");
+    if (size === "5pk") return q.or("name.ilike.%5-pack%,name.ilike.%5 pack%,name.ilike.%5pk%,name.ilike.%5-pk%");
   }
 
   if (cat === "Edibles" || cat === "Tinctures") {
-    if (size === "200mg+") {
-      return rows.filter((p) => {
-        const m = p.name.match(/(?:^|\D)(\d+)mg/i);
-        return m ? parseInt(m[1]) >= 200 : false;
-      });
-    }
-    // \b word boundary: \b10mg\b won't match "100mg"
+    // 200mg+: no numeric column to filter on — use ilike "%mg%" as a broad server-side filter;
+    // the count reflects all items with "mg" in the name (slightly over-counts), page results are correct.
+    if (size === "200mg+") return q.ilike("name", "%mg%");
     const mgVal = size.replace("mg", "");
-    const regex = new RegExp(`\\b${mgVal}mg\\b`, "i");
-    return rows.filter((p) => regex.test(p.name));
+    return q.ilike("name", `%${mgVal}mg%`);
   }
 
-  return rows;
+  return q;
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────
@@ -172,26 +168,69 @@ function getDispName(dispensaries: Product["dispensaries"]): string {
   return (Array.isArray(dispensaries) ? dispensaries[0]?.name : dispensaries?.name) ?? "—";
 }
 
+function sortByDiscount(rows: Product[], dir: SortDir): Product[] {
+  return [...rows].sort((a, b) => {
+    const disc = (p: Product) =>
+      p.original_price && p.price && Number(p.original_price) > Number(p.price)
+        ? (Number(p.original_price) - Number(p.price)) / Number(p.original_price)
+        : 0;
+    return dir === "desc" ? disc(b) - disc(a) : disc(a) - disc(b);
+  });
+}
+
+function sortByValue(rows: Product[], dir: SortDir): Product[] {
+  return [...rows].sort((a, b) => {
+    const va = calcMgPerDollar(a.name, a.category, a.thc_percentage, a.weight_grams, a.price);
+    const vb = calcMgPerDollar(b.name, b.category, b.thc_percentage, b.weight_grams, b.price);
+    if (va === null && vb === null) return 0;
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    return dir === "desc" ? vb - va : va - vb;
+  });
+}
+
+// ─── SUSPENSE WRAPPER ─────────────────────────────────────────
 export default function PricesPage() {
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [dispensaries, setDispensaries] = useState<string[]>([]);
+  return (
+    <Suspense
+      fallback={
+        <div className="gork-empty">
+          <p>Ziggy is scanning the market...</p>
+        </div>
+      }
+    >
+      <PricesPageInner />
+    </Suspense>
+  );
+}
+
+// ─── MAIN COMPONENT ───────────────────────────────────────────
+function PricesPageInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // ── Read all filter/sort/page state from URL ──
+  const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
+  const query = searchParams.get("search") ?? "";
+  const category = searchParams.get("category") ?? "All";
+  const sizeFilter = searchParams.get("size") ?? "all";
+  const dispensaryFilter = searchParams.get("dispensary") ?? "All";
+  const saleOnly = searchParams.get("sale_only") === "1";
+  const sortField = (searchParams.get("sort") ?? "price") as SortField;
+  const sortDir = (searchParams.get("sort_dir") ?? "asc") as SortDir;
+
+  // ── Local state ──
+  const [localQuery, setLocalQuery] = useState(query);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(0);
+  const [dispensaries, setDispensaries] = useState<{ id: string; name: string }[]>([]);
+  const [hotDeal, setHotDeal] = useState<HotDeal | null>(null);
 
-  // Filters
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("All");
-  const [sizeFilter, setSizeFilter] = useState("all");
-  const [dispensary, setDispensary] = useState("All");
-  const [saleOnly, setSaleOnly] = useState(false);
-  const [sortField, setSortField] = useState<SortField>("price");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-
-  // Pro gate state for value sort tooltip
   const isPro = true; // wire to auth later
   const [valueSortMsg, setValueSortMsg] = useState(false);
 
-  // Compare modal
   const [compareModal, setCompareModal] = useState<{
     productName: string;
     results: CompareResult[];
@@ -203,138 +242,176 @@ export default function PricesPage() {
   const sizeLabel = category === "Edibles" || category === "Tinctures" ? "Dose" : "Size";
   const showSizeFilter = !!sizeOptions;
 
-  // ─── LOAD ALL PRODUCTS ONCE ────────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadAll() {
-      setLoading(true);
-      const { data } = await supabase
-        .from("products")
-        .select("id, name, brand, category, weight_grams, price, original_price, on_sale, thc_percentage, dispensary_id, dispensaries(name)")
-        .eq("in_stock", true)
-        .limit(5000);
-      if (!cancelled) {
-        setAllProducts((data ?? []) as Product[]);
-        setLoading(false);
+  // ── URL update helper ──
+  function setParams(updates: Record<string, string | null>) {
+    const params = new URLSearchParams(window.location.search);
+    for (const [key, value] of Object.entries(updates)) {
+      if (!value || value === "All" || value === "all") {
+        params.delete(key);
+      } else {
+        params.set(key, value);
       }
     }
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
 
-    loadAll();
+  // ── Sync local query input when URL changes (e.g. browser back) ──
+  useEffect(() => {
+    setLocalQuery(query);
+  }, [query]);
 
+  // ── Debounce search input → URL (400ms) ──
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const trimmed = localQuery.trim();
+      if (trimmed) {
+        params.set("search", trimmed);
+      } else {
+        params.delete("search");
+      }
+      params.delete("page");
+      const qs = params.toString();
+      router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [localQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetch dispensary list once ──
+  useEffect(() => {
     supabase
       .from("dispensaries")
-      .select("name")
+      .select("id, name")
       .neq("slug", "__test__")
       .then(({ data }) => {
-        if (!cancelled) {
-          const names = ((data ?? []) as { name: string }[])
-            .map((d) => d.name)
-            .filter(Boolean)
-            .sort();
-          setDispensaries(names);
-        }
+        setDispensaries(
+          ((data ?? []) as { id: string; name: string }[])
+            .filter((d) => d.name)
+            .sort((a, b) => a.name.localeCompare(b.name))
+        );
       });
-
-    return () => { cancelled = true; };
   }, []);
 
-  // Reset page whenever any filter/sort changes
+  // ── Fetch hot deal once on mount ──
   useEffect(() => {
-    setPage(0);
-  }, [query, category, sizeFilter, dispensary, saleOnly, sortField, sortDir]);
+    supabase
+      .from("products")
+      .select("id, name, price, original_price, on_sale, dispensaries(name)")
+      .eq("in_stock", true)
+      .eq("on_sale", true)
+      .not("original_price", "is", null)
+      .order("original_price", { ascending: false })
+      .limit(200)
+      .then(({ data }) => {
+        const best =
+          ((data ?? []) as Product[])
+            .filter(
+              (p) =>
+                p.original_price &&
+                p.price &&
+                Number(p.original_price) > Number(p.price)
+            )
+            .map((p) => ({
+              ...p,
+              discountPct: Math.round(
+                ((Number(p.original_price!) - Number(p.price!)) /
+                  Number(p.original_price!)) *
+                  100
+              ),
+            }))
+            .filter((p) => p.discountPct >= 15)
+            .sort((a, b) => b.discountPct - a.discountPct)[0] ?? null;
+        setHotDeal(best);
+      });
+  }, []);
 
-  // ─── REACTIVE FILTER + SORT ────────────────────────────────
-  const filteredProducts = useMemo(() => {
-    let rows = allProducts;
+  // ── Main paginated fetch — fires whenever URL params change ──
+  useEffect(() => {
+    // Wait for dispensaries to load before filtering by dispensary name
+    if (dispensaryFilter !== "All" && dispensaries.length === 0) return;
 
-    // Text search: name OR brand
-    if (query.trim()) {
-      const q = query.trim().toLowerCase();
-      rows = rows.filter(
-        (p) => p.name.toLowerCase().includes(q) || (p.brand ?? "").toLowerCase().includes(q)
-      );
-    }
+    let cancelled = false;
+    setLoading(true);
 
-    // Category
-    if (category !== "All") {
-      const variants = CAT_MAP[category] ?? [category];
-      rows = rows.filter((p) => variants.includes(p.category ?? ""));
-    }
+    (async () => {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-    // Size / Dose
-    if (showSizeFilter && sizeFilter !== "all") {
-      rows = applyClientSizeFilter(rows, category, sizeFilter);
-    }
+      const dispId =
+        dispensaryFilter !== "All"
+          ? (dispensaries.find((d) => d.name === dispensaryFilter)?.id ?? null)
+          : null;
 
-    // Dispensary
-    if (dispensary !== "All") {
-      rows = rows.filter((p) => getDispName(p.dispensaries) === dispensary);
-    }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q: any = supabase
+        .from("products")
+        .select(
+          "id, name, brand, category, weight_grams, price, original_price, on_sale, thc_percentage, dispensary_id, dispensaries(name)",
+          { count: "exact" }
+        )
+        .eq("in_stock", true);
 
-    // On sale
-    if (saleOnly) {
-      rows = rows.filter(
-        (p) =>
-          p.on_sale ||
-          (p.original_price != null && p.price != null && Number(p.original_price) > Number(p.price))
-      );
-    }
+      // Text search
+      if (query.trim()) {
+        q = q.or(
+          `name.ilike.%${query.trim()}%,brand.ilike.%${query.trim()}%`
+        );
+      }
 
-    // Sort
-    return [...rows].sort((a, b) => {
+      // Category
+      if (category !== "All") {
+        q = q.in("category", CAT_MAP[category] ?? [category]);
+      }
+
+      // Size
+      q = applySizeFilterToQuery(q, category, sizeFilter);
+
+      // Dispensary
+      if (dispId) {
+        q = q.eq("dispensary_id", dispId);
+      }
+
+      // On sale
+      if (saleOnly) {
+        q = q.eq("on_sale", true);
+      }
+
+      // Sort (server-side for DB columns; discount/value sorted client-side within page)
+      const ascending = sortDir === "asc";
       if (sortField === "price") {
-        const va = a.price != null ? Number(a.price) : (sortDir === "asc" ? Infinity : -Infinity);
-        const vb = b.price != null ? Number(b.price) : (sortDir === "asc" ? Infinity : -Infinity);
-        return sortDir === "asc" ? va - vb : vb - va;
+        q = q.order("price", { ascending, nullsFirst: false });
+      } else if (sortField === "thc") {
+        q = q.order("thc_percentage", { ascending, nullsFirst: false });
+      } else if (sortField === "size") {
+        q = q.order("weight_grams", { ascending, nullsFirst: false });
+      } else {
+        // discount, value — default to price; re-sort within page below
+        q = q.order("price", { ascending: true, nullsFirst: false });
       }
-      if (sortField === "thc") {
-        const va = a.thc_percentage != null ? Number(a.thc_percentage) : (sortDir === "desc" ? -Infinity : Infinity);
-        const vb = b.thc_percentage != null ? Number(b.thc_percentage) : (sortDir === "desc" ? -Infinity : Infinity);
-        return sortDir === "asc" ? va - vb : vb - va;
-      }
-      if (sortField === "discount") {
-        const disc = (p: Product) =>
-          p.original_price && p.price && Number(p.original_price) > Number(p.price)
-            ? (Number(p.original_price) - Number(p.price)) / Number(p.original_price)
-            : 0;
-        const va = disc(a), vb = disc(b);
-        return sortDir === "desc" ? vb - va : va - vb;
-      }
-      if (sortField === "value") {
-        const va = calcMgPerDollar(a.name, a.category, a.thc_percentage, a.weight_grams, a.price);
-        const vb = calcMgPerDollar(b.name, b.category, b.thc_percentage, b.weight_grams, b.price);
-        if (va === null && vb === null) return 0;
-        if (va === null) return 1;
-        if (vb === null) return -1;
-        return sortDir === "desc" ? vb - va : va - vb;
-      }
-      if (sortField === "size") {
-        if (category === "Edibles" || category === "Tinctures") {
-          const getMg = (p: Product) => {
-            const m = p.name.match(/(?:^|\D)(\d+)mg/i);
-            return m ? parseInt(m[1]) : null;
-          };
-          const va = getMg(a), vb = getMg(b);
-          if (va === null && vb === null) return 0;
-          if (va === null) return 1;
-          if (vb === null) return -1;
-          return sortDir === "desc" ? vb - va : va - vb;
-        }
-        const va = a.weight_grams != null ? Number(a.weight_grams) : null;
-        const vb = b.weight_grams != null ? Number(b.weight_grams) : null;
-        if (va === null && vb === null) return 0;
-        if (va === null) return 1;
-        if (vb === null) return -1;
-        return sortDir === "desc" ? vb - va : va - vb;
-      }
-      return 0;
-    });
-  }, [allProducts, query, category, sizeFilter, showSizeFilter, dispensary, saleOnly, sortField, sortDir]);
 
-  const totalFiltered = filteredProducts.length;
-  const pageProducts = filteredProducts.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-  const totalPages = Math.ceil(totalFiltered / PAGE_SIZE);
+      q = q.range(from, to);
+
+      const { data, count, error } = await q;
+
+      if (!cancelled) {
+        if (!error) {
+          let rows = (data ?? []) as Product[];
+          if (sortField === "discount") rows = sortByDiscount(rows, sortDir);
+          else if (sortField === "value") rows = sortByValue(rows, sortDir);
+          setProducts(rows);
+          setTotalCount(count ?? 0);
+        }
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [page, query, category, sizeFilter, dispensaryFilter, saleOnly, sortField, sortDir, dispensaries]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   // ─── HOT TAKE BANNER ──────────────────────────────────────
   const ZIGGY_HOT_TAKES = [
@@ -350,28 +427,14 @@ export default function PricesPage() {
     "Ziggy's hot take: buy it. Ziggy's cold take: also buy it.",
   ];
 
-  const hotDeal = useMemo(() => {
-    const candidates = allProducts
-      .filter((p) => p.on_sale && p.original_price != null && p.price != null && Number(p.original_price) > Number(p.price))
-      .map((p) => ({
-        ...p,
-        discountPct: Math.round(((Number(p.original_price) - Number(p.price)) / Number(p.original_price)) * 100),
-      }))
-      .filter((p) => p.discountPct >= 15)
-      .sort((a, b) => b.discountPct - a.discountPct);
-    return candidates[0] ?? null;
-  }, [allProducts]);
-
-  const hotTakeIndex = useMemo(() => {
-    if (!hotDeal) return 0;
-    return Math.abs(hotDeal.id.charCodeAt(0) + hotDeal.id.charCodeAt(1)) % ZIGGY_HOT_TAKES.length;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotDeal]);
+  const hotTakeIndex = hotDeal
+    ? Math.abs(hotDeal.id.charCodeAt(0) + hotDeal.id.charCodeAt(1)) %
+      ZIGGY_HOT_TAKES.length
+    : 0;
 
   // ─── HANDLERS ─────────────────────────────────────────────
   const handleCategoryChange = (val: string) => {
-    setCategory(val);
-    setSizeFilter("all");
+    setParams({ category: val === "All" ? null : val, size: null, page: null });
   };
 
   const handleSort = (field: SortField) => {
@@ -382,31 +445,30 @@ export default function PricesPage() {
         return;
       }
       if (sortField !== "value") {
-        setSortField("value");
-        setSortDir("desc"); // first click: highest mg/$ first
+        setParams({ sort: "value", sort_dir: "desc", page: null });
       } else if (sortDir === "desc") {
-        setSortDir("asc");
+        setParams({ sort: "value", sort_dir: "asc", page: null });
       } else {
-        setSortField("price");
-        setSortDir("asc");
+        setParams({ sort: null, sort_dir: null, page: null });
       }
       return;
     }
     if (field === "size") {
       if (sortField !== "size") {
-        setSortField("size");
-        setSortDir("desc");
+        setParams({ sort: "size", sort_dir: "desc", page: null });
       } else if (sortDir === "desc") {
-        setSortDir("asc");
+        setParams({ sort: "size", sort_dir: "asc", page: null });
       } else {
-        setSortField("price");
-        setSortDir("asc");
+        setParams({ sort: null, sort_dir: null, page: null });
       }
     } else if (sortField === field) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      setParams({ sort_dir: sortDir === "asc" ? "desc" : "asc", page: null });
     } else {
-      setSortField(field);
-      setSortDir(field === "discount" ? "desc" : "asc");
+      setParams({
+        sort: field,
+        sort_dir: field === "discount" ? "desc" : "asc",
+        page: null,
+      });
     }
   };
 
@@ -414,8 +476,11 @@ export default function PricesPage() {
     sortField !== field ? " ↕" : sortDir === "asc" ? " ↑" : " ↓";
 
   const calcDiscount = (p: Product) => {
-    if (!p.original_price || !p.price || Number(p.original_price) <= Number(p.price)) return null;
-    return Math.round(((Number(p.original_price) - Number(p.price)) / Number(p.original_price)) * 100);
+    if (!p.original_price || !p.price || Number(p.original_price) <= Number(p.price))
+      return null;
+    return Math.round(
+      ((Number(p.original_price) - Number(p.price)) / Number(p.original_price)) * 100
+    );
   };
 
   const displayThc = (p: Product) => {
@@ -430,7 +495,9 @@ export default function PricesPage() {
 
     const { data } = await supabase
       .from("products")
-      .select("price, original_price, on_sale, product_url, dispensaries(name, platform, slug, dutchie_url)")
+      .select(
+        "price, original_price, on_sale, product_url, dispensaries(name, platform, slug, dutchie_url)"
+      )
       .ilike("name", productName)
       .eq("in_stock", true)
       .order("price", { ascending: true })
@@ -446,9 +513,17 @@ export default function PricesPage() {
         on_sale: p.on_sale,
         discountPct:
           p.original_price && p.price && p.original_price > p.price
-            ? Math.round(((p.original_price - p.price) / p.original_price) * 100)
+            ? Math.round(
+                ((p.original_price - p.price) / p.original_price) * 100
+              )
             : null,
-        viewUrl: buildMenuUrl(disp?.platform, disp?.slug, disp?.dutchie_url, productName, disp?.name ?? ""),
+        viewUrl: buildMenuUrl(
+          disp?.platform,
+          disp?.slug,
+          disp?.dutchie_url,
+          productName,
+          disp?.name ?? ""
+        ),
         productUrl: p.product_url || null,
       };
     });
@@ -470,7 +545,10 @@ export default function PricesPage() {
           <div className="breadcrumb">
             Home → Price Intelligence Dashboard
             <span style={{ marginLeft: "16px", color: "var(--muted)" }}>
-              {loading ? "Loading…" : `${totalFiltered.toLocaleString()} products`} &middot; Updated hourly
+              {loading
+                ? "Loading…"
+                : `${totalCount.toLocaleString()} products`}{" "}
+              &middot; Updated hourly
             </span>
           </div>
         </Link>
@@ -478,15 +556,18 @@ export default function PricesPage() {
 
       {/* Search Zone */}
       <div className="search-zone">
-        <div className="search-inputs" style={{ gridTemplateColumns: searchGridCols }}>
+        <div
+          className="search-inputs"
+          style={{ gridTemplateColumns: searchGridCols }}
+        >
           <div>
             <label className="search-label">Search Product or Strain</label>
             <input
               className="search-input"
               type="text"
               placeholder="e.g. Blue Dream, OG Kush, gummies..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              value={localQuery}
+              onChange={(e) => setLocalQuery(e.target.value)}
             />
           </div>
 
@@ -497,7 +578,9 @@ export default function PricesPage() {
               value={category}
               onChange={(e) => handleCategoryChange(e.target.value)}
             >
-              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              {CATEGORIES.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
             </select>
           </div>
 
@@ -515,11 +598,15 @@ export default function PricesPage() {
             <select
               className="search-select"
               value={sizeFilter}
-              onChange={(e) => setSizeFilter(e.target.value)}
+              onChange={(e) =>
+                setParams({ size: e.target.value === "all" ? null : e.target.value, page: null })
+              }
               style={{ minWidth: "120px" }}
             >
               {(sizeOptions ?? []).map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -528,15 +615,31 @@ export default function PricesPage() {
             <label className="search-label">Dispensary</label>
             <select
               className="search-select"
-              value={dispensary}
-              onChange={(e) => setDispensary(e.target.value)}
+              value={dispensaryFilter}
+              onChange={(e) =>
+                setParams({ dispensary: e.target.value === "All" ? null : e.target.value, page: null })
+              }
             >
               <option>All</option>
-              {dispensaries.map((d) => <option key={d}>{d}</option>)}
+              {dispensaries.map((d) => (
+                <option key={d.id}>{d.name}</option>
+              ))}
             </select>
           </div>
 
-          <button className="search-button" onClick={() => setPage(0)}>
+          <button
+            className="search-button"
+            onClick={() => {
+              // Flush debounce immediately
+              const params = new URLSearchParams(window.location.search);
+              const trimmed = localQuery.trim();
+              if (trimmed) params.set("search", trimmed);
+              else params.delete("search");
+              params.delete("page");
+              const qs = params.toString();
+              router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+            }}
+          >
             Search
           </button>
         </div>
@@ -546,13 +649,13 @@ export default function PricesPage() {
       <div className="filter-row">
         <button
           className={`filter-chip${sortField === "price" && sortDir === "asc" ? " active" : ""}`}
-          onClick={() => { setSortField("price"); setSortDir("asc"); }}
+          onClick={() => setParams({ sort: null, sort_dir: null, page: null })}
         >
           Price ↑
         </button>
         <button
           className={`filter-chip${sortField === "price" && sortDir === "desc" ? " active" : ""}`}
-          onClick={() => { setSortField("price"); setSortDir("desc"); }}
+          onClick={() => setParams({ sort: "price", sort_dir: "desc", page: null })}
         >
           Price ↓
         </button>
@@ -571,14 +674,16 @@ export default function PricesPage() {
         <span className="filter-spacer" />
         <button
           className={`filter-chip sale-toggle${saleOnly ? " active" : ""}`}
-          onClick={() => setSaleOnly((v) => !v)}
+          onClick={() =>
+            setParams({ sale_only: saleOnly ? null : "1", page: null })
+          }
         >
           On Sale Only
         </button>
       </div>
 
       {/* Ziggy's Hot Take Banner */}
-      {!loading && hotDeal && (
+      {hotDeal && (
         <div
           style={{
             margin: "0 24px 0",
@@ -591,7 +696,14 @@ export default function PricesPage() {
             flexWrap: "wrap",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flexShrink: 0,
+            }}
+          >
             <span
               style={{
                 fontFamily: "Space Mono, monospace",
@@ -627,11 +739,32 @@ export default function PricesPage() {
               @ {getDispName(hotDeal.dispensaries)}
             </span>
           </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "6px", flexShrink: 0 }}>
-            <span style={{ fontFamily: "Space Mono, monospace", fontSize: "16px", fontWeight: 700, color: "var(--deal-green)" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              gap: "6px",
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "Space Mono, monospace",
+                fontSize: "16px",
+                fontWeight: 700,
+                color: "var(--deal-green)",
+              }}
+            >
               ${Number(hotDeal.price).toFixed(2)}
             </span>
-            <span style={{ fontFamily: "Space Mono, monospace", fontSize: "11px", color: "var(--muted)", textDecoration: "line-through" }}>
+            <span
+              style={{
+                fontFamily: "Space Mono, monospace",
+                fontSize: "11px",
+                color: "var(--muted)",
+                textDecoration: "line-through",
+              }}
+            >
               ${Number(hotDeal.original_price).toFixed(2)}
             </span>
             <span
@@ -667,7 +800,7 @@ export default function PricesPage() {
             <button
               className="filter-chip active"
               style={{ flexShrink: 0, fontSize: "10px" }}
-              onClick={() => setSaleOnly(true)}
+              onClick={() => setParams({ sale_only: "1", page: null })}
             >
               See all deals →
             </button>
@@ -680,7 +813,7 @@ export default function PricesPage() {
         <div className="gork-empty">
           <p>Ziggy is scanning the market...</p>
         </div>
-      ) : pageProducts.length === 0 ? (
+      ) : products.length === 0 ? (
         <div className="gork-empty">
           <div className="gork-empty-headline">No Products Found</div>
           <p>
@@ -690,122 +823,205 @@ export default function PricesPage() {
         </div>
       ) : (
         <>
-          <div style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginBottom: "8px" }}>
-            Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalFiltered)} of{" "}
-            {totalFiltered.toLocaleString()} products
+          <div
+            style={{
+              fontFamily: "Space Mono, monospace",
+              fontSize: "10px",
+              color: "var(--muted)",
+              marginBottom: "8px",
+            }}
+          >
+            {query.trim()
+              ? `${totalCount.toLocaleString()} products matching "${query.trim()}"`
+              : `${totalCount.toLocaleString()} products total`}
+            {" · "}Showing {page * PAGE_SIZE + 1}–
+            {Math.min((page + 1) * PAGE_SIZE, totalCount)} of{" "}
+            {totalCount.toLocaleString()}
           </div>
 
           <div style={{ overflowX: "auto" }}>
-          <table className="results-table">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th onClick={() => handleSort("size")} style={{ cursor: "pointer" }}>
-                  Size{sortField === "size" ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
-                </th>
-                <th>Dispensary</th>
-                <th onClick={() => handleSort("price")}>Price{sortIndicator("price")}</th>
-                <th
-                  onClick={() => handleSort("value")}
-                  style={{ cursor: "pointer", color: sortField === "value" ? "#34a529" : undefined, position: "relative" }}
-                >
-                  mg/${sortField === "value" ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
-                  {valueSortMsg && (
-                    <div style={{ position: "absolute", top: "100%", left: 0, width: "180px", fontFamily: "Space Mono, monospace", fontSize: "9px", color: "var(--muted)", fontWeight: 400, background: "var(--paper)", border: "1px solid var(--aged)", padding: "4px 6px", zIndex: 10, lineHeight: 1.4 }}>
-                      Sort by value score is a Pro feature — $9/month
-                    </div>
-                  )}
-                </th>
-                <th onClick={() => handleSort("thc")}>THC{sortIndicator("thc")}</th>
-                <th onClick={() => handleSort("discount")}>Discount{sortIndicator("discount")}</th>
-                <th style={{ cursor: "default" }}>Compare</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageProducts.map((p, i) => {
-                const discount = calcDiscount(p);
-                const sizeDisplay = displayProductSize(p.name, p.category, p.weight_grams);
-                const mgpd = calcMgPerDollar(p.name, p.category, p.thc_percentage, p.weight_grams, p.price);
-                return (
-                  <tr key={p.id || i} className={discount ? "on-sale" : ""}>
-                    <td>
-                      <span className="td-product-name">{p.name}</span>
-                      {(p.brand || p.category) && (
-                        <span className="td-brand">
-                          {[p.brand, p.category].filter(Boolean).join(" · ")}
+            <table className="results-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th
+                    onClick={() => handleSort("size")}
+                    style={{ cursor: "pointer" }}
+                  >
+                    Size
+                    {sortField === "size"
+                      ? sortDir === "desc"
+                        ? " ↓"
+                        : " ↑"
+                      : ""}
+                  </th>
+                  <th>Dispensary</th>
+                  <th onClick={() => handleSort("price")}>
+                    Price{sortIndicator("price")}
+                  </th>
+                  <th
+                    onClick={() => handleSort("value")}
+                    style={{
+                      cursor: "pointer",
+                      color:
+                        sortField === "value" ? "#34a529" : undefined,
+                      position: "relative",
+                    }}
+                  >
+                    mg/$
+                    {sortField === "value"
+                      ? sortDir === "desc"
+                        ? " ↓"
+                        : " ↑"
+                      : ""}
+                    {valueSortMsg && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          width: "180px",
+                          fontFamily: "Space Mono, monospace",
+                          fontSize: "9px",
+                          color: "var(--muted)",
+                          fontWeight: 400,
+                          background: "var(--paper)",
+                          border: "1px solid var(--aged)",
+                          padding: "4px 6px",
+                          zIndex: 10,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        Sort by value score is a Pro feature — $9/month
+                      </div>
+                    )}
+                  </th>
+                  <th onClick={() => handleSort("thc")}>
+                    THC{sortIndicator("thc")}
+                  </th>
+                  <th onClick={() => handleSort("discount")}>
+                    Discount{sortIndicator("discount")}
+                  </th>
+                  <th style={{ cursor: "default" }}>Compare</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((p, i) => {
+                  const discount = calcDiscount(p);
+                  const sizeDisplay = displayProductSize(
+                    p.name,
+                    p.category,
+                    p.weight_grams
+                  );
+                  const mgpd = calcMgPerDollar(
+                    p.name,
+                    p.category,
+                    p.thc_percentage,
+                    p.weight_grams,
+                    p.price
+                  );
+                  return (
+                    <tr key={p.id || i} className={discount ? "on-sale" : ""}>
+                      <td>
+                        <span className="td-product-name">{p.name}</span>
+                        {(p.brand || p.category) && (
+                          <span className="td-brand">
+                            {[p.brand, p.category].filter(Boolean).join(" · ")}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <span className="td-size">{sizeDisplay}</span>
+                      </td>
+                      <td>
+                        <span className="td-dispensary">
+                          {getDispName(p.dispensaries)}
                         </span>
-                      )}
-                    </td>
-                    <td>
-                      <span className="td-size">{sizeDisplay}</span>
-                    </td>
-                    <td>
-                      <span className="td-dispensary">{getDispName(p.dispensaries)}</span>
-                    </td>
-                    <td>
-                      <span className="td-price">
-                        {p.price ? `$${Number(p.price).toFixed(2)}` : "—"}
-                      </span>
-                      {p.original_price && (
-                        <span className="td-orig-price">
-                          ${Number(p.original_price).toFixed(2)}
+                      </td>
+                      <td>
+                        <span className="td-price">
+                          {p.price ? `$${Number(p.price).toFixed(2)}` : "—"}
                         </span>
-                      )}
-                    </td>
-                    <td>
-                      {mgpd !== null ? (
-                        <span className="td-value">{mgpd.toFixed(1)}</span>
-                      ) : (
-                        <span style={{ color: "var(--muted)", fontFamily: "Space Mono, monospace", fontSize: "12px" }}>—</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className="td-thc">{displayThc(p)}</span>
-                    </td>
-                    <td>
-                      {discount ? (
-                        <span className="td-discount">-{discount}%</span>
-                      ) : (
-                        <span style={{ color: "var(--muted)", fontFamily: "Space Mono, monospace", fontSize: "12px" }}>—</span>
-                      )}
-                    </td>
-                    <td>
-                      <button className="compare-btn" onClick={() => handleCompare(p.name)}>
-                        Compare Prices
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        {p.original_price && (
+                          <span className="td-orig-price">
+                            ${Number(p.original_price).toFixed(2)}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {mgpd !== null ? (
+                          <span className="td-value">{mgpd.toFixed(1)}</span>
+                        ) : (
+                          <span
+                            style={{
+                              color: "var(--muted)",
+                              fontFamily: "Space Mono, monospace",
+                              fontSize: "12px",
+                            }}
+                          >
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <span className="td-thc">{displayThc(p)}</span>
+                      </td>
+                      <td>
+                        {discount ? (
+                          <span className="td-discount">-{discount}%</span>
+                        ) : (
+                          <span
+                            style={{
+                              color: "var(--muted)",
+                              fontFamily: "Space Mono, monospace",
+                              fontSize: "12px",
+                            }}
+                          >
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <button
+                          className="compare-btn"
+                          onClick={() => handleCompare(p.name)}
+                        >
+                          Compare Prices
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
+          {/* Pagination */}
           {totalPages > 1 && (
             <div className="pagination">
               <button
                 className="page-btn"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                onClick={() =>
+                  setParams({ page: page > 1 ? String(page - 1) : null })
+                }
                 disabled={page === 0}
               >
                 ← Prev
               </button>
-              {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
-                const start = Math.max(0, Math.min(page - 4, totalPages - 10));
-                const p = start + i;
-                return (
-                  <button
-                    key={p}
-                    className={`page-btn${p === page ? " active" : ""}`}
-                    onClick={() => setPage(p)}
-                  >
-                    {p + 1}
-                  </button>
-                );
-              })}
+              <span
+                style={{
+                  fontFamily: "Space Mono, monospace",
+                  fontSize: "11px",
+                  color: "var(--muted)",
+                  padding: "0 12px",
+                  alignSelf: "center",
+                }}
+              >
+                Page {page + 1} of {totalPages}
+              </span>
               <button
                 className="page-btn"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                onClick={() => setParams({ page: String(page + 1) })}
                 disabled={page >= totalPages - 1}
               >
                 Next →
@@ -837,26 +1053,63 @@ export default function PricesPage() {
               <div className="modal-header">
                 <div>
                   <span className="kicker">Price Comparison</span>
-                  <h2 className="font-headline" style={{ fontSize: "18px", fontWeight: 900, marginTop: "2px" }}>
+                  <h2
+                    className="font-headline"
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: 900,
+                      marginTop: "2px",
+                    }}
+                  >
                     {compareModal.productName}
                   </h2>
                 </div>
-                <button className="modal-close" onClick={() => setCompareModal(null)}>✕</button>
+                <button
+                  className="modal-close"
+                  onClick={() => setCompareModal(null)}
+                >
+                  ✕
+                </button>
               </div>
 
               {compareLoading ? (
-                <p style={{ fontFamily: "Space Mono, monospace", fontSize: "12px", color: "var(--muted)", padding: "24px", textAlign: "center" }}>
+                <p
+                  style={{
+                    fontFamily: "Space Mono, monospace",
+                    fontSize: "12px",
+                    color: "var(--muted)",
+                    padding: "24px",
+                    textAlign: "center",
+                  }}
+                >
                   Ziggy is checking all dispensaries...
                 </p>
               ) : compareModal.results.length === 0 ? (
-                <p style={{ fontFamily: "Space Mono, monospace", fontSize: "12px", color: "var(--muted)", padding: "24px", textAlign: "center" }}>
+                <p
+                  style={{
+                    fontFamily: "Space Mono, monospace",
+                    fontSize: "12px",
+                    color: "var(--muted)",
+                    padding: "24px",
+                    textAlign: "center",
+                  }}
+                >
                   Only found at one dispensary. No comparison available.
                 </p>
               ) : (
                 <>
-                  <div style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginBottom: "12px" }}>
-                    Found at {compareModal.totalCount} dispensar{compareModal.totalCount === 1 ? "y" : "ies"}
-                    {compareModal.totalCount > FREE_COMPARE_LIMIT && ` — showing top ${FREE_COMPARE_LIMIT} free`}
+                  <div
+                    style={{
+                      fontFamily: "Space Mono, monospace",
+                      fontSize: "10px",
+                      color: "var(--muted)",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    Found at {compareModal.totalCount} dispensar
+                    {compareModal.totalCount === 1 ? "y" : "ies"}
+                    {compareModal.totalCount > FREE_COMPARE_LIMIT &&
+                      ` — showing top ${FREE_COMPARE_LIMIT} free`}
                   </div>
                   <table className="compare-table">
                     <thead>
@@ -869,72 +1122,173 @@ export default function PricesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {compareModal.results.slice(0, FREE_COMPARE_LIMIT).map((r, i) => (
-                        <tr key={i} className={r.on_sale ? "on-sale" : ""} style={i === 0 ? { background: "#eef5eb" } : {}}>
-                          <td>
-                            <span style={{ fontFamily: "Space Mono, monospace", fontSize: "12px" }}>
-                              {i === 0 && (
-                                <span style={{ background: "var(--deal-green)", color: "#fff", fontFamily: "Space Mono, monospace", fontSize: "9px", padding: "1px 5px", marginRight: "6px" }}>
-                                  BEST
+                      {compareModal.results
+                        .slice(0, FREE_COMPARE_LIMIT)
+                        .map((r, i) => (
+                          <tr
+                            key={i}
+                            className={r.on_sale ? "on-sale" : ""}
+                            style={i === 0 ? { background: "#eef5eb" } : {}}
+                          >
+                            <td>
+                              <span
+                                style={{
+                                  fontFamily: "Space Mono, monospace",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                {i === 0 && (
+                                  <span
+                                    style={{
+                                      background: "var(--deal-green)",
+                                      color: "#fff",
+                                      fontFamily: "Space Mono, monospace",
+                                      fontSize: "9px",
+                                      padding: "1px 5px",
+                                      marginRight: "6px",
+                                    }}
+                                  >
+                                    BEST
+                                  </span>
+                                )}
+                                {r.dispensaryName}
+                              </span>
+                            </td>
+                            <td>
+                              <span
+                                className="td-price"
+                                style={{ fontSize: "14px" }}
+                              >
+                                ${r.price.toFixed(2)}
+                              </span>
+                            </td>
+                            <td>
+                              {r.original_price ? (
+                                <span
+                                  className="td-orig-price"
+                                  style={{ display: "inline" }}
+                                >
+                                  ${r.original_price.toFixed(2)}
+                                </span>
+                              ) : (
+                                <span
+                                  style={{
+                                    color: "var(--muted)",
+                                    fontFamily: "Space Mono, monospace",
+                                    fontSize: "11px",
+                                  }}
+                                >
+                                  —
                                 </span>
                               )}
-                              {r.dispensaryName}
-                            </span>
-                          </td>
-                          <td><span className="td-price" style={{ fontSize: "14px" }}>${r.price.toFixed(2)}</span></td>
-                          <td>
-                            {r.original_price ? (
-                              <span className="td-orig-price" style={{ display: "inline" }}>${r.original_price.toFixed(2)}</span>
-                            ) : (
-                              <span style={{ color: "var(--muted)", fontFamily: "Space Mono, monospace", fontSize: "11px" }}>—</span>
-                            )}
-                          </td>
-                          <td>
-                            {r.discountPct ? (
-                              <span className="td-discount">-{r.discountPct}%</span>
-                            ) : (
-                              <span style={{ color: "var(--muted)", fontFamily: "Space Mono, monospace", fontSize: "11px" }}>—</span>
-                            )}
-                          </td>
-                          <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                            <span className="pro-badge">PRO</span>
-                            <a
-                              href={r.productUrl || r.viewUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="view-menu-link"
-                            >
-                              {r.productUrl ? "View Product →" : "View Menu →"}
-                            </a>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td>
+                              {r.discountPct ? (
+                                <span className="td-discount">
+                                  -{r.discountPct}%
+                                </span>
+                              ) : (
+                                <span
+                                  style={{
+                                    color: "var(--muted)",
+                                    fontFamily: "Space Mono, monospace",
+                                    fontSize: "11px",
+                                  }}
+                                >
+                                  —
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                              <span className="pro-badge">PRO</span>
+                              <a
+                                href={r.productUrl || r.viewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="view-menu-link"
+                              >
+                                {r.productUrl ? "View Product →" : "View Menu →"}
+                              </a>
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
 
                   {compareModal.totalCount > FREE_COMPARE_LIMIT && (
                     <div className="modal-upsell">
-                      <div style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", textAlign: "center", padding: "8px 0 4px", borderTop: "1px solid var(--aged)" }}>
-                        +{compareModal.totalCount - FREE_COMPARE_LIMIT} more dispensaries carrying this product — blurred below
+                      <div
+                        style={{
+                          fontFamily: "Space Mono, monospace",
+                          fontSize: "10px",
+                          color: "var(--muted)",
+                          textAlign: "center",
+                          padding: "8px 0 4px",
+                          borderTop: "1px solid var(--aged)",
+                        }}
+                      >
+                        +{compareModal.totalCount - FREE_COMPARE_LIMIT} more
+                        dispensaries carrying this product — blurred below
                       </div>
                       <div className="blurred-rows">
-                        {[...Array(Math.min(compareModal.totalCount - FREE_COMPARE_LIMIT, 3))].map((_, i) => (
+                        {[
+                          ...Array(
+                            Math.min(
+                              compareModal.totalCount - FREE_COMPARE_LIMIT,
+                              3
+                            )
+                          ),
+                        ].map((_, i) => (
                           <div key={i} className="blurred-row" />
                         ))}
                       </div>
-                      <div style={{ textAlign: "center", padding: "16px", background: "var(--aged)", border: "1px solid var(--ink)", marginTop: "8px" }}>
-                        <div className="font-headline" style={{ fontSize: "15px", fontWeight: 900, marginBottom: "4px" }}>
-                          Pro members see all {compareModal.totalCount} dispensaries
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: "16px",
+                          background: "var(--aged)",
+                          border: "1px solid var(--ink)",
+                          marginTop: "8px",
+                        }}
+                      >
+                        <div
+                          className="font-headline"
+                          style={{
+                            fontSize: "15px",
+                            fontWeight: 900,
+                            marginBottom: "4px",
+                          }}
+                        >
+                          Pro members see all {compareModal.totalCount}{" "}
+                          dispensaries
                         </div>
-                        <div style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginBottom: "12px" }}>
+                        <div
+                          style={{
+                            fontFamily: "Space Mono, monospace",
+                            fontSize: "10px",
+                            color: "var(--muted)",
+                            marginBottom: "12px",
+                          }}
+                        >
                           $9/month · 7-day free trial · cancel anytime
                         </div>
                         <button
                           className="cta-button"
-                          style={{ maxWidth: "220px", margin: "0 auto", display: "block" }}
+                          style={{
+                            maxWidth: "220px",
+                            margin: "0 auto",
+                            display: "block",
+                          }}
                           onClick={async () => {
-                            const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
-                            if (res.ok) { const { url } = await res.json(); window.location.href = url; }
+                            const res = await fetch("/api/checkout", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({}),
+                            });
+                            if (res.ok) {
+                              const { url } = await res.json();
+                              window.location.href = url;
+                            }
                           }}
                         >
                           Start Free Trial
@@ -951,7 +1305,9 @@ export default function PricesPage() {
 
       <footer className="site-footer">
         © {new Date().getFullYear()} Daily Weed Newspaper &middot;{" "}
-        <Link href="/" style={{ color: "var(--accent)" }}>← Back to Front Page</Link>
+        <Link href="/" style={{ color: "var(--accent)" }}>
+          ← Back to Front Page
+        </Link>
       </footer>
     </div>
   );

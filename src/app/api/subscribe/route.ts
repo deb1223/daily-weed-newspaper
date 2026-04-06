@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
   // Notify Dan
   await resend.emails.send({
     from: "Daily Weed Newspaper <noreply@dailyweednewspaper.com>",
-    to: "dan@vegasplanpro.com",
+    to: "danieledwardbeecher@gmail.com",
     subject: `New subscriber: ${email} (${safeTier})`,
     text: `New subscriber: ${email} signed up for ${safeTier} tier.`,
   }).catch((e) => console.error("[Subscribe] Notify email failed:", e));
