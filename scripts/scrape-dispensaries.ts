@@ -596,6 +596,24 @@ function parseJaneProducts(products: Record<string, unknown>[], storeId: number)
       ? `https://iheartjane.com/embed/stores/${storeId}/products/${productId}`
       : undefined
 
+    // Weight extraction:
+    // 1. net_weight_grams > 0  (set for pre-rolls, disposables, concentrates; 0 for flower/some carts)
+    // 2. amount field          (e.g. "2g", "1g" — present when net_weight_grams > 0)
+    // 3. name parsing          (many names contain "[1g]", "[2g]", "[500mg]", etc.)
+    let weightGrams: number | undefined
+    const netWt = Number(sa.net_weight_grams ?? 0)
+    if (netWt > 0) {
+      weightGrams = netWt
+    } else {
+      const fromAmount = parseWeight(String(sa.amount || ''))
+      if (fromAmount) {
+        weightGrams = fromAmount
+      } else {
+        const fromName = parseWeight(name)
+        if (fromName) weightGrams = fromName
+      }
+    }
+
     result.push({
       name,
       brand:         String(sa.brand ?? ''),
@@ -603,6 +621,7 @@ function parseJaneProducts(products: Record<string, unknown>[], storeId: number)
       subcategory:   String(sa.custom_product_subtype ?? sa.root_subtype ?? sa.brand_subtype ?? ''),
       strainType:    String(sa.category ?? ''),  // indica/sativa/hybrid
       thcPercentage: thcPct,
+      weightGrams,
       price,
       originalPrice,
       onSale,
@@ -786,6 +805,9 @@ function parseSweedProducts(items: unknown[]): InterceptedProduct[] {
         const sizeName = v.name ? ` ${v.name}` : ''
         const fullName = variants.length > 1 ? `${name}${sizeName}` : name
 
+        // Weight: v.name holds the size label (e.g. "3.5g", "1g", "7g")
+        const weightGrams = parseWeight(String(v.name || '')) || parseWeight(fullName) || undefined
+
         products.push({
           name:          fullName,
           brand:         String(brandObj?.name ?? ''),
@@ -794,6 +816,7 @@ function parseSweedProducts(items: unknown[]): InterceptedProduct[] {
           originalPrice: compareAt > price ? compareAt : undefined,
           onSale:        compareAt > price,
           thcPercentage: thcPct,
+          weightGrams,
           inStock:       v.isAvailable !== false && v.inStock !== false,
         })
       }
@@ -809,6 +832,7 @@ function parseSweedProducts(items: unknown[]): InterceptedProduct[] {
         price,
         originalPrice: compareAt > price ? compareAt : undefined,
         onSale:        compareAt > price,
+        weightGrams:   parseWeight(name) || undefined,
         inStock:       p.inStock !== false && p.isAvailable !== false,
       })
     }

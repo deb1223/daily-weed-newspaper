@@ -44,7 +44,7 @@ Site is LIVE at dailyweednewspaper.com
 - LLM daily brief pipeline — Anthropic API (claude-sonnet-4-6, no extended thinking)
   - Cron at 0 15 * * * UTC (8am Las Vegas time)
   - Saves as status: 'draft' — never auto-publishes
-  - Notification email to dan@vegasplanpro.com with full draft content
+  - Notification email to danieledwardbeecher@gmail.com with full draft content
   - Admin review page at /admin/brief?secret=CRON_SECRET
   - One-click publish button → /api/publish-brief
   - Homepage reads from daily_briefs WHERE status = 'published', falls back to hardcoded
@@ -52,7 +52,7 @@ Site is LIVE at dailyweednewspaper.com
 - subscribers Supabase table created (email, tier, city, created_at, confirmed)
 - Email capture wired to Resend on homepage, page 3, and /prices modal
   - Welcome email: Ziggy-voiced, newspaper aesthetic HTML
-  - Notification to dan@vegasplanpro.com on each signup
+  - Notification to danieledwardbeecher@gmail.com on each signup
 - Resend domain verified (dailyweednewspaper.com) — emails sending
 - Ziggy's Hot Take banner on /prices
   - Pulls highest-discount product (>=15% off)

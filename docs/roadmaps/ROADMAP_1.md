@@ -40,7 +40,7 @@ See NEXT_PROMPT.md
 - [ ] Ziggy's Pick of the Moment banner on /prices
 - [ ] Email capture wired to Resend
 - [ ] Welcome email (Ziggy-voiced, newspaper aesthetic)
-- [ ] Subscriber notification to dan@vegasplanpro.com
+- [ ] Subscriber notification to danieledwardbeecher@gmail.com
 
 ### V1.2 — Next Week  
 - [ ] LLM daily brief generation (Anthropic API + Vercel Cron at 8am)

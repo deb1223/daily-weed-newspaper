@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { Resend } from "resend";
+import { welcomeEmailHtml } from "@/lib/email";
 
 function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -11,6 +13,29 @@ function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_KEY!
   );
+}
+
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
+
+async function alertError(eventType: string, customerEmail: string | null, errorMessage: string) {
+  try {
+    await getResend().emails.send({
+      from: "Daily Weed Newspaper <noreply@dailyweednewspaper.com>",
+      to: "danieledwardbeecher@gmail.com",
+      subject: `[Stripe webhook error] ${eventType}`,
+      text: [
+        `Event: ${eventType}`,
+        `Customer: ${customerEmail ?? "(unknown)"}`,
+        `Error: ${errorMessage}`,
+        "",
+        "This requires manual intervention in Supabase.",
+      ].join("\n"),
+    });
+  } catch (e) {
+    console.error("[Webhook] Alert email failed:", e);
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -45,7 +70,7 @@ export async function POST(req: NextRequest) {
       typeof session.subscription === "string" ? session.subscription : null;
 
     if (email) {
-      await supabase
+      const { error } = await supabase
         .from("subscribers")
         .upsert(
           {
@@ -57,6 +82,19 @@ export async function POST(req: NextRequest) {
           },
           { onConflict: "email" }
         );
+
+      if (error) {
+        console.error("[Webhook] checkout.session.completed upsert failed:", error);
+        await alertError(event.type, email, error.message);
+      } else {
+        // Send Pro welcome email on successful subscription
+        await getResend().emails.send({
+          from: "Ziggy at Daily Weed Newspaper <noreply@dailyweednewspaper.com>",
+          to: email,
+          subject: "Ziggy says welcome. Don't embarrass us.",
+          html: welcomeEmailHtml("pro"),
+        }).catch((e) => console.error("[Webhook] Pro welcome email failed:", e));
+      }
     }
   } else if (event.type === "customer.subscription.deleted") {
     const sub = event.data.object as Stripe.Subscription;
@@ -64,10 +102,15 @@ export async function POST(req: NextRequest) {
       typeof sub.customer === "string" ? sub.customer : null;
 
     if (customerId) {
-      await supabase
+      const { error } = await supabase
         .from("subscribers")
         .update({ tier: "free", stripe_subscription_id: null })
         .eq("stripe_customer_id", customerId);
+
+      if (error) {
+        console.error("[Webhook] customer.subscription.deleted update failed:", error);
+        await alertError(event.type, null, error.message);
+      }
     }
   } else if (event.type === "customer.subscription.updated") {
     const sub = event.data.object as Stripe.Subscription;
@@ -76,10 +119,15 @@ export async function POST(req: NextRequest) {
 
     if (customerId) {
       const tier = sub.status === "active" ? "pro" : "free";
-      await supabase
+      const { error } = await supabase
         .from("subscribers")
         .update({ tier, stripe_subscription_id: sub.id })
         .eq("stripe_customer_id", customerId);
+
+      if (error) {
+        console.error("[Webhook] customer.subscription.updated update failed:", error);
+        await alertError(event.type, null, error.message);
+      }
     }
   }
 

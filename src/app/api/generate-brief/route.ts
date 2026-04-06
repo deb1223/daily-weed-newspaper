@@ -274,7 +274,7 @@ Return ONLY a valid JSON object with exactly these fields (no markdown, no code 
   const resend = new Resend(process.env.RESEND_API_KEY);
   await resend.emails.send({
     from: "Daily Weed Newspaper <noreply@dailyweednewspaper.com>",
-    to: "dan@vegasplanpro.com",
+    to: "danieledwardbeecher@gmail.com",
     subject: `Ziggy's daily brief is ready for review — ${today}`,
     html: briefToEmailHtml(today, brief),
   }).catch((e) => console.error("[generate-brief] Email failed:", e));
