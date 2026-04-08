@@ -6,7 +6,7 @@ import path from "path";
 // Works when the Next.js app and scraper share a filesystem (local / VPS).
 // On Vercel serverless the spawn will silently no-op — run the scraper via
 // a cron on the host machine instead.
-export const maxDuration = 10;
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");

@@ -420,16 +420,14 @@ async function upsertDispensaryJane(slug: string, name: string): Promise<string 
 
 async function upsertProducts(
   dispensaryId: string,
-  products: InterceptedProduct[]
+  products: InterceptedProduct[],
+  source: 'dutchie' | 'jane' | 'curaleaf'
 ): Promise<{ inserted: number; updated: number; failed: number }> {
   let inserted = 0
   let updated = 0
   let failed = 0
 
   for (const product of products) {
-    if (product.name.includes('Jack Herer')) {
-      console.log('Jack Herer productUrl:', product.productUrl)
-    }
     const payload = {
       dispensary_id: dispensaryId,
       name: product.name,
@@ -447,7 +445,7 @@ async function upsertProducts(
       in_stock: product.inStock !== false,
       image_url: product.imageUrl || null,
       product_url: product.productUrl || null,
-      source: 'dutchie',
+      source,
       last_scraped: new Date().toISOString(),
     }
 
@@ -560,7 +558,6 @@ function parseJaneProducts(products: Record<string, unknown>[], storeId: number)
           break
         }
       }
-      if (!onSale) onSale = true // Has a special even if we can't parse the price
     }
 
     // Brand specials (e.g. "20% back") — use as sale indicator
@@ -593,7 +590,7 @@ function parseJaneProducts(products: Record<string, unknown>[], storeId: number)
 
     const productId = String(item.objectID || sa.product_id || '')
     const productUrl = productId
-      ? `https://iheartjane.com/embed/stores/${storeId}/products/${productId}`
+      ? `https://www.iheartjane.com/stores/${storeId}/products/${productId}`
       : undefined
 
     // Weight extraction:
@@ -969,7 +966,7 @@ async function deleteStaleProducts(dispensaryId: string, scrapedProducts: Interc
 
 async function main() {
   console.log('🌿 Las Vegas Dispensary Scraper Starting...')
-  console.log(`  Targeting ${LAS_VEGAS_DUTCHIE_SLUGS.length} dispensaries\n`)
+  console.log(`  Targeting ${LAS_VEGAS_DUTCHIE_SLUGS.length + THRIVE_DISPENSARIES.length + CURALEAF_DISPENSARIES.length} dispensaries\n`)
 
   const browser = await chromium.launch({
     headless: true,
@@ -1015,7 +1012,7 @@ async function main() {
     if (!dispensaryId) continue
 
     // Upsert products
-    const results = await upsertProducts(dispensaryId, products)
+    const results = await upsertProducts(dispensaryId, products, 'dutchie')
     console.log(`  ✓ Saved: ${results.inserted} new, ${results.updated} updated (${results.failed} failed)`)
 
     const deleted = await deleteStaleProducts(dispensaryId, products)
@@ -1047,7 +1044,7 @@ async function main() {
     const dispensaryId = await upsertDispensaryJane(dispensary.slug, dispensary.name)
     if (!dispensaryId) continue
 
-    const results = await upsertProducts(dispensaryId, products)
+    const results = await upsertProducts(dispensaryId, products, 'jane')
     console.log(`  ✓ Saved: ${results.inserted} new, ${results.updated} updated (${results.failed} failed)`)
 
     const deleted = await deleteStaleProducts(dispensaryId, products)
@@ -1078,7 +1075,7 @@ async function main() {
     const dispensaryId = await upsertDispensary(dispensary.slug, 'dispensary', dispensary.name)
     if (!dispensaryId) continue
 
-    const results = await upsertProducts(dispensaryId, products)
+    const results = await upsertProducts(dispensaryId, products, 'curaleaf')
     console.log(`  ✓ Saved: ${results.inserted} new, ${results.updated} updated (${results.failed} failed)`)
 
     const deleted = await deleteStaleProducts(dispensaryId, products)
