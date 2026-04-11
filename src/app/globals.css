@@ -467,6 +467,13 @@ body::after {
   padding: 0 24px;
 }
 
+/* Tighten vertical spacing so first product row is above fold on 768px+ */
+.prices-page .mini-masthead { margin-bottom: 12px; }
+.prices-page .mini-masthead-link { padding: 8px 0; }
+.prices-page .mini-title-link { font-size: clamp(18px, 2.5vw, 28px); }
+.prices-page .search-zone { padding: 12px 16px; margin-bottom: 8px; }
+.prices-page .filter-row { margin-bottom: 8px; }
+
 .mini-masthead {
   border-bottom: 3px double var(--ink);
   margin-bottom: 24px;
@@ -516,7 +523,7 @@ body::after {
 
 .search-inputs {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  grid-template-columns: minmax(160px, 1fr) auto auto auto;
   gap: 8px;
   align-items: end;
 }

@@ -244,6 +244,7 @@ function PricesPageInner() {
 
   // ── URL update helper ──
   function setParams(updates: Record<string, string | null>) {
+    const savedY = window.scrollY;
     const params = new URLSearchParams(window.location.search);
     for (const [key, value] of Object.entries(updates)) {
       if (!value || value === "All" || value === "all") {
@@ -254,6 +255,7 @@ function PricesPageInner() {
     }
     const qs = params.toString();
     router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+    requestAnimationFrame(() => window.scrollTo(0, savedY));
   }
 
   // ── Sync local query input when URL changes (e.g. browser back) ──
@@ -377,7 +379,7 @@ function PricesPageInner() {
         q = q.eq("on_sale", true);
       }
 
-      // Sort (server-side for DB columns; discount/value sorted client-side within page)
+      // Sort — server-side for all columns
       const ascending = sortDir === "asc";
       if (sortField === "price") {
         q = q.order("price", { ascending, nullsFirst: false });
@@ -385,8 +387,12 @@ function PricesPageInner() {
         q = q.order("thc_percentage", { ascending, nullsFirst: false });
       } else if (sortField === "size") {
         q = q.order("weight_grams", { ascending, nullsFirst: false });
+      } else if (sortField === "discount") {
+        // Proxy: on_sale items first, then by original_price desc (highest savings first)
+        q = q.order("on_sale", { ascending: false, nullsFirst: false })
+             .order("original_price", { ascending, nullsFirst: false });
       } else {
-        // discount, value — default to price; re-sort within page below
+        // value — default to price; re-sort within page below
         q = q.order("price", { ascending: true, nullsFirst: false });
       }
 
@@ -397,8 +403,7 @@ function PricesPageInner() {
       if (!cancelled) {
         if (!error) {
           let rows = (data ?? []) as Product[];
-          if (sortField === "discount") rows = sortByDiscount(rows, sortDir);
-          else if (sortField === "value") rows = sortByValue(rows, sortDir);
+          if (sortField === "value") rows = sortByValue(rows, sortDir);
           setProducts(rows);
           setTotalCount(count ?? 0);
         }
@@ -431,6 +436,17 @@ function PricesPageInner() {
     ? Math.abs(hotDeal.id.charCodeAt(0) + hotDeal.id.charCodeAt(1)) %
       ZIGGY_HOT_TAKES.length
     : 0;
+
+  // ── Flush debounce immediately (shared by button click and Enter key) ──
+  function flushSearch() {
+    const params = new URLSearchParams(window.location.search);
+    const trimmed = localQuery.trim();
+    if (trimmed) params.set("search", trimmed);
+    else params.delete("search");
+    params.delete("page");
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
 
   // ─── HANDLERS ─────────────────────────────────────────────
   const handleCategoryChange = (val: string) => {
@@ -466,7 +482,7 @@ function PricesPageInner() {
     } else {
       setParams({
         sort: field,
-        sort_dir: field === "discount" ? "desc" : "asc",
+        sort_dir: field === "discount" || field === "thc" ? "desc" : "asc",
         page: null,
       });
     }
@@ -533,8 +549,8 @@ function PricesPageInner() {
   };
 
   const searchGridCols = showSizeFilter
-    ? "1fr auto auto auto auto"
-    : "1fr auto auto auto";
+    ? "minmax(160px, 1fr) auto auto auto auto"
+    : "minmax(160px, 1fr) auto auto auto";
 
   return (
     <div className="prices-page">
@@ -568,6 +584,7 @@ function PricesPageInner() {
               placeholder="e.g. Blue Dream, OG Kush, gummies..."
               value={localQuery}
               onChange={(e) => setLocalQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") flushSearch(); }}
             />
           </div>
 
@@ -629,16 +646,7 @@ function PricesPageInner() {
 
           <button
             className="search-button"
-            onClick={() => {
-              // Flush debounce immediately
-              const params = new URLSearchParams(window.location.search);
-              const trimmed = localQuery.trim();
-              if (trimmed) params.set("search", trimmed);
-              else params.delete("search");
-              params.delete("page");
-              const qs = params.toString();
-              router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
-            }}
+            onClick={flushSearch}
           >
             Search
           </button>
