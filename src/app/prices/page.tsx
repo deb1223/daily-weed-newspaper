@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { displayProductSize, calcMgPerDollar } from "@/lib/format";
+import TerpProfileSelector, { type ProfileKey, TERP_PROFILES } from "@/components/TerpProfileSelector";
 
 interface Dispensary {
   name: string;
@@ -219,6 +220,7 @@ function PricesPageInner() {
   const saleOnly = searchParams.get("sale_only") === "1";
   const sortField = (searchParams.get("sort") ?? "price") as SortField;
   const sortDir = (searchParams.get("sort_dir") ?? "asc") as SortDir;
+  const activeProfile = (searchParams.get("profile") ?? null) as ProfileKey | null;
 
   // ── Local state ──
   const [localQuery, setLocalQuery] = useState(query);
@@ -394,6 +396,23 @@ function PricesPageInner() {
         q = q.eq("on_sale", true);
       }
 
+      // Terpene profile filter
+      const profileParam = searchParams.get("profile") as ProfileKey | null;
+      if (profileParam) {
+        const profile = TERP_PROFILES.find((p) => p.key === profileParam);
+        if (profile) {
+          for (const f of profile.filters) {
+            if (f.required) {
+              // Required: column must exceed threshold (non-null)
+              q = q.not(f.col, "is", null).gt(f.col, f.value);
+            } else if (f.operator === "lt") {
+              // Suppress: column must be null OR below threshold
+              q = q.or(`${f.col}.is.null,${f.col}.lt.${f.value}`);
+            }
+          }
+        }
+      }
+
       // Sort — read directly from searchParams to avoid stale closure
       const sort = searchParams.get("sort");
       switch (sort) {
@@ -431,7 +450,7 @@ function PricesPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [page, query, category, sizeFilter, dispensaryFilter, saleOnly, sortField, sortDir, dispensaries]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, query, category, sizeFilter, dispensaryFilter, saleOnly, sortField, sortDir, activeProfile, dispensaries]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -468,6 +487,10 @@ function PricesPageInner() {
   // ─── HANDLERS ─────────────────────────────────────────────
   const handleCategoryChange = (val: string) => {
     setParams({ category: val === "All" ? null : val, size: null, page: null });
+  };
+
+  const handleProfileSelect = (key: ProfileKey | null) => {
+    setParams({ profile: key, page: null });
   };
 
   const handleSort = (field: SortField) => {
@@ -603,6 +626,12 @@ function PricesPageInner() {
           </div>
         </Link>
       </div>
+
+      {/* Terp Profile Selector */}
+      <TerpProfileSelector
+        activeProfile={activeProfile}
+        onSelectProfile={handleProfileSelect}
+      />
 
       {/* Search Zone */}
       <div className="search-zone">

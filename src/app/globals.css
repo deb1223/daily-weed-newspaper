@@ -1025,6 +1025,494 @@ body > div > div {
   margin: 4px 0;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   TERP PROFILE SELECTOR
+═══════════════════════════════════════════════════════════════ */
+
+.terp-profile-bar {
+  background: var(--deep-forest);
+  border-bottom: 2px solid var(--deal-green);
+  padding: 14px 24px 10px;
+}
+
+.terp-profile-label {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.terp-profile-ziggy-name {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--deal-green);
+}
+
+.terp-profile-hint {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  color: rgba(255,255,255,0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.terp-profile-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.terp-chip-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.terp-chip {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 5px 10px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  border-radius: 3px 0 0 3px;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* "All" chip is standalone (no info btn) */
+.terp-chip:first-child {
+  border-radius: 3px;
+}
+
+.terp-chip:hover {
+  border-color: var(--deal-green);
+  color: #fff;
+  background: rgba(52,165,41,0.15);
+}
+
+.terp-chip-active {
+  background: var(--deal-green) !important;
+  border-color: var(--deal-green) !important;
+  color: #fff !important;
+}
+
+.terp-chip-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.terp-info-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 100%;
+  min-height: 26px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-left: none;
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  border-radius: 0 3px 3px 0;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.terp-info-btn:hover {
+  background: rgba(52,165,41,0.2);
+  color: var(--deal-green);
+  border-color: var(--deal-green);
+}
+
+.terp-active-tagline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.terp-active-icon { font-size: 14px; }
+
+.terp-active-label {
+  font-family: 'Playfair Display', serif;
+  font-size: 12px;
+  font-style: italic;
+  color: rgba(255,255,255,0.8);
+}
+
+.terp-active-note {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+  margin-left: 4px;
+}
+
+/* ── Info Modal ─────────────────────────────────────────────── */
+
+.terp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10,10,10,0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 16px;
+}
+
+.terp-modal {
+  background: var(--newsprint);
+  border: 2px solid var(--ink);
+  max-width: 520px;
+  width: 100%;
+  padding: 24px;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.terp-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1;
+  padding: 0;
+  font-family: 'Space Mono', monospace;
+}
+
+.terp-modal-close:hover { color: var(--ink); }
+
+.terp-modal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.terp-modal-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.terp-modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.terp-modal-tagline {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--deal-green);
+  margin-top: 3px;
+}
+
+.terp-modal-desc {
+  font-family: 'Source Serif 4', serif;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink);
+  margin-bottom: 16px;
+}
+
+.terp-modal-research {
+  background: var(--aged);
+  border-left: 3px solid var(--deal-green);
+  padding: 10px 14px;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.terp-modal-research-label {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--deal-green);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.terp-modal-filters { margin-bottom: 20px; }
+
+.terp-modal-filters-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-weight: 700;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.terp-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.terp-filter-pill {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.terp-filter-required {
+  background: rgba(52,165,41,0.12);
+  border: 1px solid rgba(52,165,41,0.35);
+  color: #1a5e15;
+}
+
+.terp-filter-suppress {
+  background: rgba(214,40,40,0.08);
+  border: 1px solid rgba(214,40,40,0.25);
+  color: #8a1a1a;
+}
+
+.terp-ziggy-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--deep-forest);
+  color: var(--deal-green);
+  border: 2px solid var(--deal-green);
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s;
+}
+
+.terp-ziggy-btn:hover {
+  background: var(--deal-green);
+  color: #fff;
+}
+
+.terp-ziggy-btn-icon { font-size: 16px; }
+
+/* ── Ziggy Chat Modal ────────────────────────────────────────── */
+
+.terp-chat-modal {
+  max-width: 580px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: min(680px, 92vh);
+}
+
+.terp-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--deep-forest);
+  border-bottom: 2px solid var(--deal-green);
+  flex-shrink: 0;
+}
+
+.terp-chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.terp-chat-ziggy-badge {
+  width: 32px;
+  height: 32px;
+  background: var(--deal-green);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.terp-chat-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.terp-chat-subtitle {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+  margin-top: 1px;
+}
+
+.terp-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--newsprint);
+}
+
+.terp-chat-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.terp-chat-msg-user {
+  flex-direction: row-reverse;
+}
+
+.terp-chat-msg-avatar {
+  width: 28px;
+  height: 28px;
+  background: var(--deep-forest);
+  color: var(--deal-green);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.terp-chat-msg-bubble {
+  max-width: calc(100% - 40px);
+  padding: 10px 14px;
+  font-family: 'Source Serif 4', serif;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.terp-chat-msg-assistant .terp-chat-msg-bubble {
+  background: var(--aged);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 0 6px 6px 6px;
+}
+
+.terp-chat-msg-user .terp-chat-msg-bubble {
+  background: var(--deep-forest);
+  color: #fff;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  border-radius: 6px 0 6px 6px;
+  text-align: right;
+}
+
+.terp-chat-typing {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.terp-chat-typing span {
+  width: 6px;
+  height: 6px;
+  background: var(--muted);
+  border-radius: 50%;
+  animation: terp-bounce 1.2s infinite;
+}
+
+.terp-chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+.terp-chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes terp-bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-5px); }
+}
+
+.terp-chat-input-row {
+  display: flex;
+  gap: 0;
+  border-top: 2px solid var(--ink);
+  flex-shrink: 0;
+}
+
+.terp-chat-input {
+  flex: 1;
+  padding: 12px 14px;
+  font-family: 'Source Serif 4', serif;
+  font-size: 14px;
+  border: none;
+  background: var(--newsprint);
+  color: var(--ink);
+  outline: none;
+}
+
+.terp-chat-input::placeholder { color: var(--muted); opacity: 0.6; }
+
+.terp-chat-send {
+  padding: 12px 20px;
+  background: var(--deep-forest);
+  color: var(--deal-green);
+  border: none;
+  border-left: 2px solid var(--ink);
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.terp-chat-send:hover:not(:disabled) {
+  background: var(--deal-green);
+  color: #fff;
+}
+
+.terp-chat-send:disabled { opacity: 0.4; cursor: default; }
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+  .terp-profile-bar { padding: 12px 14px 8px; }
+  .terp-chip { font-size: 9px; padding: 4px 7px; }
+  .terp-active-note { display: none; }
+  .terp-chat-modal { height: 95vh; }
+}
+
+/* ─────────────────────────────────────────────────────────── */
+
 .blurred-row {
   height: 36px;
   background: linear-gradient(90deg, var(--aged) 25%, var(--newsprint) 50%, var(--aged) 75%);
