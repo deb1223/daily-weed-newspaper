@@ -92,7 +92,7 @@ interface InterceptedProduct {
 
 function parseWeight(text: string): number | null {
   if (!text) return null
-  const match = text.match(/(\d+\.?\d*)\s*(g|oz|mg)/i)
+  const match = text.match(/(\d*\.?\d+)\s*(g|oz|mg)/i)
   if (!match) return null
   const value = parseFloat(match[1])
   const unit = match[2].toLowerCase()
@@ -597,18 +597,28 @@ function parseJaneProducts(products: Record<string, unknown>[], storeId: number)
     // 1. net_weight_grams > 0  (set for pre-rolls, disposables, concentrates; 0 for flower/some carts)
     // 2. amount field          (e.g. "2g", "1g" — present when net_weight_grams > 0)
     // 3. name parsing          (many names contain "[1g]", "[2g]", "[500mg]", etc.)
+    //
+    // KNOWN ISSUES with Jane's net_weight_grams field:
+    // - Returns mg instead of g for some vape carts (850mg cart -> net_weight_grams=850)
+    // - Returns total pack weight instead of per-unit weight for some products
+    //   (e.g. 20-pack of 1.75g pre-rolls -> net_weight_grams=35, name says [1.75g])
+    // - Returns values 10x too large for some sub-1g carts (.5g cart -> net_weight_grams=5)
+    // Guard: when name has an explicit parseable weight and net_weight_grams is implausibly
+    // larger (>3x), trust the name weight instead.
     let weightGrams: number | undefined
     const netWt = Number(sa.net_weight_grams ?? 0)
+    const nameWeight = parseWeight(name) ?? parseWeight(String(sa.amount || ''))
     if (netWt > 0) {
-      weightGrams = netWt
-    } else {
-      const fromAmount = parseWeight(String(sa.amount || ''))
-      if (fromAmount) {
-        weightGrams = fromAmount
+      // Fix mg-stored-as-grams: net_weight_grams > 100 is always mg for cannabis products
+      const netWtNormalized = netWt > 100 ? netWt / 1000 : netWt
+      // Fix pack-total / 10x inflation: if name says X but API says >3X, name is per-unit truth
+      if (nameWeight && nameWeight > 0 && netWtNormalized / nameWeight > 3) {
+        weightGrams = nameWeight
       } else {
-        const fromName = parseWeight(name)
-        if (fromName) weightGrams = fromName
+        weightGrams = netWtNormalized
       }
+    } else {
+      if (nameWeight) weightGrams = nameWeight
     }
 
     result.push({

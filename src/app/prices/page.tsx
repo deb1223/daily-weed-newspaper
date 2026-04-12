@@ -241,6 +241,13 @@ function PricesPageInner() {
   } | null>(null);
   const [compareLoading, setCompareLoading] = useState(false);
 
+  useEffect(() => {
+    if (!compareModal) return;
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setCompareModal(null); };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [compareModal]);
+
   const sizeOptions = SIZE_OPTIONS[category] ?? null;
   const sizeLabel = category === "Edibles" || category === "Tinctures" ? "Dose" : "Size";
   const showSizeFilter = !!sizeOptions;
@@ -1120,13 +1127,14 @@ function PricesPageInner() {
               transition={{ duration: 0.2 }}
               onClick={() => setCompareModal(null)}
             />
-            <motion.div
-              className="modal-box"
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 24 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-            >
+            <div className="modal-wrapper">
+              <motion.div
+                className="modal-box"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 24 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              >
               <div className="modal-header">
                 <div>
                   <span className="kicker">Price Comparison</span>
@@ -1375,7 +1383,8 @@ function PricesPageInner() {
                   )}
                 </>
               )}
-            </motion.div>
+              </motion.div>
+            </div>
           </>
         )}
       </AnimatePresence>
