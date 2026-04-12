@@ -634,6 +634,13 @@ function PricesPageInner() {
         </Link>
       </div>
 
+      <h1 className="prices-h1">
+        Las Vegas Cannabis Price Comparison
+        {!loading && totalCount > 0 && (
+          <span className="prices-h1-count"> — {totalCount.toLocaleString()} Products</span>
+        )}
+      </h1>
+
       {/* Terp Profile Selector */}
       <TerpProfileSelector
         activeProfile={activeProfile}
