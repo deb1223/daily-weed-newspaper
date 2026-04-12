@@ -227,6 +227,7 @@ function PricesPageInner() {
   const [loading, setLoading] = useState(true);
   const [dispensaries, setDispensaries] = useState<{ id: string; name: string }[]>([]);
   const [hotDeal, setHotDeal] = useState<HotDeal | null>(null);
+  const [lastScraped, setLastScraped] = useState<string | null>(null);
 
   const isPro = true; // wire to auth later
   const [valueSortMsg, setValueSortMsg] = useState(false);
@@ -279,6 +280,20 @@ function PricesPageInner() {
     }, 400);
     return () => clearTimeout(timer);
   }, [localQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetch last scraped timestamp once on mount ──
+  useEffect(() => {
+    supabase
+      .from("products")
+      .select("last_scraped")
+      .eq("in_stock", true)
+      .order("last_scraped", { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data?.last_scraped) setLastScraped(data.last_scraped as string);
+      });
+  }, []);
 
   // ── Fetch dispensary list once ──
   useEffect(() => {
@@ -399,7 +414,6 @@ function PricesPageInner() {
           q = q.order("price", { ascending: true, nullsFirst: false });
       }
 
-      console.log("[prices] sort param:", sort, "| assembled order before .range()");
       q = q.range(from, to);
 
       const { data, count, error } = await q;
@@ -494,6 +508,15 @@ function PricesPageInner() {
   const sortIndicator = (field: SortField) =>
     sortField !== field ? " ↕" : sortDir === "asc" ? " ↑" : " ↓";
 
+  const formatTimeAgo = (iso: string): { label: string; stale: boolean } => {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    const hrs = Math.floor(mins / 60);
+    if (mins < 60) return { label: `Updated ${mins} min ago`, stale: false };
+    if (hrs < 3) return { label: `Updated ${hrs} hr ago`, stale: false };
+    return { label: `Updated ${hrs} hrs ago`, stale: true };
+  };
+
   const calcDiscount = (p: Product) => {
     if (!p.original_price || !p.price || Number(p.original_price) <= Number(p.price))
       return null;
@@ -567,7 +590,15 @@ function PricesPageInner() {
               {loading
                 ? "Loading…"
                 : `${totalCount.toLocaleString()} products`}{" "}
-              &middot; Updated hourly
+              &middot;{" "}
+              {lastScraped ? (() => {
+                const { label, stale } = formatTimeAgo(lastScraped);
+                return (
+                  <span style={stale ? { color: "var(--amber, #d97706)" } : undefined}>
+                    {label}
+                  </span>
+                );
+              })() : "Updated hourly"}
             </span>
           </div>
         </Link>
@@ -681,6 +712,12 @@ function PricesPageInner() {
           onClick={() => handleSort("thc")}
         >
           Highest THC
+        </button>
+        <button
+          className={`filter-chip${sortField === "value" ? " active" : ""}`}
+          onClick={() => handleSort("value")}
+        >
+          Best Value
         </button>
         <span className="filter-spacer" />
         <button
