@@ -388,6 +388,9 @@ function PricesPageInner() {
       // Category
       if (category !== "All") {
         q = q.in("category", CAT_MAP[category] ?? [category]);
+      } else {
+        // "All" means all cannabis products — exclude accessories from the default view
+        q = q.not("category", "in", `(${(CAT_MAP["Accessories"] ?? ["Accessories"]).join(",")})`);
       }
 
       // Size
