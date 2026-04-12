@@ -379,31 +379,34 @@ function PricesPageInner() {
         q = q.eq("on_sale", true);
       }
 
-      // Sort — server-side for all columns
-      const ascending = sortDir === "asc";
-      if (sortField === "price") {
-        q = q.order("price", { ascending, nullsFirst: false });
-      } else if (sortField === "thc") {
-        q = q.order("thc_percentage", { ascending, nullsFirst: false });
-      } else if (sortField === "size") {
-        q = q.order("weight_grams", { ascending, nullsFirst: false });
-      } else if (sortField === "discount") {
-        // Proxy: on_sale items first, then by original_price desc (highest savings first)
-        q = q.order("on_sale", { ascending: false, nullsFirst: false })
-             .order("original_price", { ascending, nullsFirst: false });
-      } else {
-        // value — default to price; re-sort within page below
-        q = q.order("price", { ascending: true, nullsFirst: false });
+      // Sort — read directly from searchParams to avoid stale closure
+      const sort = searchParams.get("sort");
+      switch (sort) {
+        case "value":
+          q = q.order("mg_per_dollar", { ascending: false, nullsFirst: false });
+          break;
+        case "thc":
+          q = q.order("thc_percentage", { ascending: false, nullsFirst: false });
+          break;
+        case "discount":
+          q = q.order("on_sale", { ascending: false });
+          q = q.order("original_price", { ascending: false, nullsFirst: false });
+          break;
+        case "size":
+          q = q.order("weight_grams", { ascending: false, nullsFirst: false });
+          break;
+        default:
+          q = q.order("price", { ascending: true, nullsFirst: false });
       }
 
+      console.log("[prices] sort param:", sort, "| assembled order before .range()");
       q = q.range(from, to);
 
       const { data, count, error } = await q;
 
       if (!cancelled) {
         if (!error) {
-          let rows = (data ?? []) as Product[];
-          if (sortField === "value") rows = sortByValue(rows, sortDir);
+          const rows = (data ?? []) as Product[];
           setProducts(rows);
           setTotalCount(count ?? 0);
         }
