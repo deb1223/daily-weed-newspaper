@@ -72,6 +72,14 @@ interface InterceptedResponse {
 // Note: products table has `product_url text` column (migration already applied):
 // alter table products add column if not exists product_url text;
 
+// Produce a URL-safe slug from any product name
+function slugify(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 interface InterceptedProduct {
   name: string
   brand?: string
@@ -589,8 +597,10 @@ function parseJaneProducts(products: Record<string, unknown>[], storeId: number)
     }
 
     const productId = String(item.objectID || sa.product_id || '')
+    // Always construct canonical iHeartJane URL — never trust URLs from the API response,
+    // which may use custom dispensary domains (e.g. thrivenevada.com).
     const productUrl = productId
-      ? `https://www.iheartjane.com/stores/${storeId}/products/${productId}`
+      ? `https://iheartjane.com/stores/${storeId}/menu/products/${productId}/${slugify(name)}`
       : undefined
 
     // Weight extraction:
@@ -975,7 +985,12 @@ async function deleteStaleProducts(dispensaryId: string, scrapedProducts: Interc
 }
 
 async function main() {
+  const janeOnly = process.argv.includes('--jane-only')
+  const dutchieOnly = process.argv.includes('--dutchie-only')
+
   console.log('🌿 Las Vegas Dispensary Scraper Starting...')
+  if (janeOnly) console.log('  Mode: Jane-only')
+  if (dutchieOnly) console.log('  Mode: Dutchie-only')
   console.log(`  Targeting ${LAS_VEGAS_DUTCHIE_SLUGS.length + THRIVE_DISPENSARIES.length + CURALEAF_DISPENSARIES.length} dispensaries\n`)
 
   const browser = await chromium.launch({
@@ -987,6 +1002,7 @@ async function main() {
   let totalFailed = 0
 
   for (const dispensary of LAS_VEGAS_DUTCHIE_SLUGS) {
+    if (janeOnly) continue
     if (TEST_MODE && !TEST_SLUGS.includes(dispensary.slug)) {
       console.log(`  ⏭ TEST_MODE: skipping ${dispensary.slug}`)
       continue
@@ -1036,7 +1052,8 @@ async function main() {
   }
 
   // ── Thrive (iHeartJane) ───────────────────────────────────────────────────
-  console.log('\n\n══ Thrive (iHeartJane) ══')
+  if (!dutchieOnly) {
+  console.log('\n\n══ iHeartJane ══')
   for (const dispensary of THRIVE_DISPENSARIES) {
     if (TEST_MODE && !TEST_SLUGS.includes(dispensary.slug)) {
       console.log(`  ⏭ TEST_MODE: skipping ${dispensary.slug}`)
@@ -1065,8 +1082,10 @@ async function main() {
 
     await new Promise(resolve => setTimeout(resolve, 2000))
   }
+  } // end !dutchieOnly
 
   // ── Curaleaf (Sweed POS) ──────────────────────────────────────────────────
+  if (!janeOnly && !dutchieOnly) {
   console.log('\n\n══ Curaleaf (Sweed POS) ══')
   for (const dispensary of CURALEAF_DISPENSARIES) {
     if (TEST_MODE) {
@@ -1096,6 +1115,7 @@ async function main() {
 
     await new Promise(resolve => setTimeout(resolve, 2000))
   }
+  } // end !janeOnly && !dutchieOnly
 
   await browser.close()
 
