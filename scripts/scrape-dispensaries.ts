@@ -315,6 +315,19 @@ function extractProductsFromResponse(body: unknown, slug: string): InterceptedPr
       }
     }
 
+    // Weight fallback: rawOptions e.g. ["0.5g", "1.0g"]
+    if (!weightGrams) {
+      const rawOptions = p.rawOptions as string[] | undefined
+      if (Array.isArray(rawOptions) && rawOptions.length > 0) {
+        weightGrams = parseWeight(rawOptions[0]) ?? undefined
+      }
+    }
+
+    // Final fallback: parse weight from product name
+    if (!weightGrams) {
+      weightGrams = parseWeight(name) ?? undefined
+    }
+
     const productId = String(p.id || p._id || p.Id || '')
     const productUrl = productId
       ? `https://dutchie.com/dispensary/${slug}/product/${productId}`
@@ -603,20 +616,23 @@ function parseJaneProducts(products: Record<string, unknown>[], storeId: number)
       ? `https://iheartjane.com/stores/${storeId}/menu/products/${productId}/${slugify(name)}`
       : undefined
 
-    // Weight extraction:
-    // 1. net_weight_grams > 0  (set for pre-rolls, disposables, concentrates; 0 for flower/some carts)
-    // 2. amount field          (e.g. "2g", "1g" — present when net_weight_grams > 0)
-    // 3. name parsing          (many names contain "[1g]", "[2g]", "[500mg]", etc.)
+    // Weight extraction priority:
+    // 1. net_weight_grams / weight_grams from search_attributes or root item
+    // 2. amount field (e.g. "2g", "1g")
+    // 3. name parsing (many names contain "[1g]", "[2g]", "[500mg]", etc.)
+    // 4. available_weights array (Jane structured size list, e.g. ["1g"] for plain-named carts)
     //
     // KNOWN ISSUES with Jane's net_weight_grams field:
     // - Returns mg instead of g for some vape carts (850mg cart -> net_weight_grams=850)
     // - Returns total pack weight instead of per-unit weight for some products
     //   (e.g. 20-pack of 1.75g pre-rolls -> net_weight_grams=35, name says [1.75g])
     // - Returns values 10x too large for some sub-1g carts (.5g cart -> net_weight_grams=5)
+    // - Returns 0 for plain-named products like "Ape" (classic 510 carts) — use available_weights
     // Guard: when name has an explicit parseable weight and net_weight_grams is implausibly
     // larger (>3x), trust the name weight instead.
     let weightGrams: number | undefined
-    const netWt = Number(sa.net_weight_grams ?? 0)
+    // sa.weight_grams is a separate field from sa.net_weight_grams on some product types
+    const netWt = Number(sa.net_weight_grams ?? sa.weight_grams ?? item.net_weight_grams ?? item.weight_grams ?? 0)
     const nameWeight = parseWeight(name) ?? parseWeight(String(sa.amount || ''))
     if (netWt > 0) {
       // Fix mg-stored-as-grams: net_weight_grams > 100 is always mg for cannabis products
@@ -627,8 +643,26 @@ function parseJaneProducts(products: Record<string, unknown>[], storeId: number)
       } else {
         weightGrams = netWtNormalized
       }
+    } else if (nameWeight) {
+      weightGrams = nameWeight
     } else {
-      if (nameWeight) weightGrams = nameWeight
+      // Fallback: available_weights is a Jane structured field listing selectable size buckets.
+      // Values are unit labels ("gram", "half_gram", "two_gram"), not parseable weight strings.
+      // This covers plain-named products (e.g. "Ape" vape carts, loose flower sold per gram).
+      const JANE_WEIGHT_MAP: Record<string, number> = {
+        half_gram: 0.5,
+        gram:      1,
+        two_gram:  2,
+        eighth:    3.5,
+        quarter:   7,
+        half:      14,
+        ounce:     28,
+      }
+      const availableWeights = sa.available_weights as string[] | undefined
+      if (Array.isArray(availableWeights) && availableWeights.length > 0) {
+        const mapped = JANE_WEIGHT_MAP[availableWeights[0]]
+        weightGrams = mapped ?? parseWeight(availableWeights[0]) ?? undefined
+      }
     }
 
     result.push({
