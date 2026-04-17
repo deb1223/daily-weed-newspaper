@@ -439,6 +439,53 @@ async function upsertDispensaryJane(slug: string, name: string): Promise<string 
   return data?.id || null
 }
 
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
+    arr.slice(i * size, i * size + size)
+  )
+}
+
+async function upsertSingleProduct(
+  product: InterceptedProduct,
+  dispensaryId: string,
+  source: 'dutchie' | 'jane' | 'curaleaf'
+): Promise<'inserted' | 'updated' | 'failed'> {
+  const payload = {
+    dispensary_id: dispensaryId,
+    name: product.name,
+    brand: product.brand || null,
+    category: product.category || null,
+    subcategory: product.subcategory || null,
+    strain_type: product.strainType || null,
+    thc_percentage: (product.thcPercentage != null && product.thcPercentage >= 0 && product.thcPercentage <= 100) ? product.thcPercentage : null,
+    cbd_percentage: (product.cbdPercentage != null && product.cbdPercentage >= 0 && product.cbdPercentage <= 100) ? product.cbdPercentage : null,
+    weight_grams: product.weightGrams || null,
+    price: product.price,
+    original_price: product.originalPrice || null,
+    on_sale: product.onSale || false,
+    deal_description: product.dealDescription || null,
+    in_stock: product.inStock !== false,
+    image_url: product.imageUrl || null,
+    product_url: product.productUrl || null,
+    source,
+    last_scraped: new Date().toISOString(),
+  }
+
+  // True upsert against the existing unique index on (dispensary_id, name, weight_grams).
+  // NULLS NOT DISTINCT on the index means null weight_grams values are treated as equal,
+  // so products without a weight resolve correctly without SELECT+INSERT races.
+  // Note: do NOT use onConflict:'dispensary_id,name' — it would break multi-weight products
+  // (same strain in 1g/3.5g/7g). The 3-column index is the correct conflict target.
+  const { data, error } = await supabase
+    .from('products')
+    .upsert(payload, { onConflict: 'dispensary_id,name,weight_grams', ignoreDuplicates: false })
+    .select('id')
+    .maybeSingle()
+
+  if (error) return 'failed'
+  return data ? 'updated' : 'inserted'
+}
+
 async function upsertProducts(
   dispensaryId: string,
   products: InterceptedProduct[],
@@ -448,46 +495,25 @@ async function upsertProducts(
   let updated = 0
   let failed = 0
 
-  for (const product of products) {
-    const payload = {
-      dispensary_id: dispensaryId,
-      name: product.name,
-      brand: product.brand || null,
-      category: product.category || null,
-      subcategory: product.subcategory || null,
-      strain_type: product.strainType || null,
-      thc_percentage: (product.thcPercentage != null && product.thcPercentage >= 0 && product.thcPercentage <= 100) ? product.thcPercentage : null,
-      cbd_percentage: (product.cbdPercentage != null && product.cbdPercentage >= 0 && product.cbdPercentage <= 100) ? product.cbdPercentage : null,
-      weight_grams: product.weightGrams || null,
-      price: product.price,
-      original_price: product.originalPrice || null,
-      on_sale: product.onSale || false,
-      deal_description: product.dealDescription || null,
-      in_stock: product.inStock !== false,
-      image_url: product.imageUrl || null,
-      product_url: product.productUrl || null,
-      source,
-      last_scraped: new Date().toISOString(),
+  const batches = chunkArray(products, 50)
+
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i]
+    console.log(`  💾 Saving batch ${i + 1}/${batches.length} (${batch.length} products)...`)
+
+    const results = await Promise.all(
+      batch.map(p => upsertSingleProduct(p, dispensaryId, source))
+    )
+
+    for (const r of results) {
+      if (r === 'inserted') inserted++
+      else if (r === 'updated') updated++
+      else failed++
     }
 
-    // Check if row already exists (avoids relying on a specific unique index shape)
-    const { data: existing } = await supabase
-      .from('products')
-      .select('id')
-      .eq('dispensary_id', dispensaryId)
-      .eq('name', product.name)
-      .maybeSingle()
-
-    let error
-    if (existing?.id) {
-      ;({ error } = await supabase.from('products').update(payload).eq('id', existing.id))
-      if (!error) updated++
-    } else {
-      ;({ error } = await supabase.from('products').insert(payload))
-      if (!error) inserted++
+    if (i < batches.length - 1) {
+      await new Promise(r => setTimeout(r, 150))
     }
-
-    if (error) failed++
   }
 
   return { inserted, updated, failed }
@@ -817,10 +843,150 @@ async function scrapeThrive(
 // ─── Curaleaf / Sweed POS scraper ────────────────────────────────────────────
 
 const CURALEAF_DISPENSARIES = [
-  { slug: 'curaleaf-nv-las-vegas',       name: 'Curaleaf NV Las Vegas',       url: 'https://curaleaf.com/stores/curaleaf-nv-las-vegas/menu' },
-  { slug: 'curaleaf-north-las-vegas',    name: 'Curaleaf North Las Vegas',    url: 'https://curaleaf.com/stores/curaleaf-north-las-vegas/menu' },
-  { slug: 'curaleaf-las-vegas-western',  name: 'Curaleaf Las Vegas Western',  url: 'https://curaleaf.com/stores/curaleaf-las-vegas-western-ave/menu' },
+  { slug: 'curaleaf-nv-las-vegas',       name: 'Curaleaf NV Las Vegas',       url: 'https://curaleaf.com/shop/nevada/curaleaf-nv-las-vegas/recreational' },
+  { slug: 'curaleaf-north-las-vegas',    name: 'Curaleaf North Las Vegas',    url: 'https://curaleaf.com/shop/nevada/curaleaf-north-las-vegas/recreational' },
+  { slug: 'curaleaf-las-vegas-western',  name: 'Curaleaf Las Vegas Western',  url: 'https://curaleaf.com/shop/nevada/curaleaf-las-vegas-western-ave/recreational' },
 ]
+
+/**
+ * Navigates through all Curaleaf gate layers in sequence.
+ *
+ * Gate 1 — Age gate (/age-gate?returnurl=...)
+ *   Select Nevada, check both boxes, click "I'm over 21"
+ *   Cookie is set after this — reused for all subsequent Curaleaf pages in same context.
+ *
+ * Gate 2 — Dispensary landing page
+ *   Click "Shop Adult Menu" / "Adult Use Menu" button
+ *
+ * Gate 3 — Guest modal
+ *   Click "Continue as Guest" / dismiss without email
+ *
+ * Returns true if all gates passed and product grid is visible, false otherwise.
+ */
+async function navigateCuraleafGate(page: Page, url: string): Promise<boolean> {
+  // ── Navigate to the dispensary URL ──────────────────────────────────────
+  console.log(`  🌐 Navigating to ${url}`)
+  try {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    await page.waitForTimeout(3000)
+  } catch (err) {
+    console.error(`  ✗ [Gate 0] Initial navigation failed: ${err}`)
+    return false
+  }
+
+  // ── Gate 1: Age gate ─────────────────────────────────────────────────────
+  if (page.url().includes('age-gate') || page.url().includes('age_gate')) {
+    console.log(`  🔞 [Gate 1] Age gate detected at ${page.url()}`)
+    try {
+      // State dropdown — Curaleaf uses a custom button-based dropdown, not a <select>
+      const stateBtn = page.locator('button, [role="button"], [role="combobox"]')
+        .filter({ hasText: /state|select state/i })
+        .first()
+      await stateBtn.waitFor({ timeout: 8000 })
+      await stateBtn.click()
+      await page.waitForTimeout(800)
+
+      // Nevada option in the dropdown list
+      const nevadaOpt = page.locator('[role="option"], li, button')
+        .filter({ hasText: /^nevada$/i })
+        .first()
+      await nevadaOpt.waitFor({ timeout: 8000 })
+      await nevadaOpt.click()
+      await page.waitForTimeout(800)
+      console.log(`  ✓ [Gate 1] Nevada selected`)
+
+      // Wait for both checkboxes to become enabled, then check them
+      const checkboxes = page.locator('input[type="checkbox"]')
+      await checkboxes.first().waitFor({ timeout: 8000 })
+      const count = await checkboxes.count()
+      console.log(`  🔲 [Gate 1] Found ${count} checkbox(es)`)
+      for (let i = 0; i < count; i++) {
+        const cb = checkboxes.nth(i)
+        // Only check if not already checked
+        const checked = await cb.isChecked().catch(() => false)
+        if (!checked) {
+          await cb.click({ force: true })
+          await page.waitForTimeout(300)
+        }
+      }
+
+      // Click the "I'm over 21" / "I am 21+" button
+      const over21Btn = page.locator('button, [role="button"]')
+        .filter({ hasText: /i.?m over 21|i am 21|over 21/i })
+        .first()
+      await over21Btn.waitFor({ timeout: 8000 })
+      await over21Btn.click()
+      await page.waitForTimeout(5000)
+      console.log(`  ✓ [Gate 1] Age gate passed → ${page.url()}`)
+    } catch (err) {
+      console.error(`  ✗ [Gate 1] Age gate failed: ${err}`)
+      return false
+    }
+  } else {
+    console.log(`  ✓ [Gate 1] No age gate (cookie already set)`)
+  }
+
+  // ── Gate 2: "Shop Adult Menu" button on dispensary landing ───────────────
+  console.log(`  🛒 [Gate 2] Looking for adult menu button...`)
+  try {
+    const shopBtn = page.locator('a, button, [role="button"]')
+      .filter({ hasText: /shop adult|adult use|adult menu|recreational menu|shop rec/i })
+      .first()
+    // If it appears within 8s, click it; otherwise assume already on menu page
+    const visible = await shopBtn.isVisible().catch(() => false)
+    if (!visible) {
+      await shopBtn.waitFor({ timeout: 8000 }).catch(() => null)
+    }
+    const stillVisible = await shopBtn.isVisible().catch(() => false)
+    if (stillVisible) {
+      await shopBtn.click()
+      await page.waitForTimeout(4000)
+      console.log(`  ✓ [Gate 2] Adult menu button clicked → ${page.url()}`)
+    } else {
+      console.log(`  ✓ [Gate 2] No landing button found — already on menu`)
+    }
+  } catch (err) {
+    // Non-fatal: page may already be on the product menu
+    console.log(`  ⚠ [Gate 2] Adult menu button not found (${err}) — continuing`)
+  }
+
+  // ── Gate 3: Guest modal ───────────────────────────────────────────────────
+  console.log(`  👤 [Gate 3] Looking for guest modal...`)
+  try {
+    const guestBtn = page.locator('button, [role="button"], a')
+      .filter({ hasText: /continue as guest|skip|no thanks|guest/i })
+      .first()
+    await guestBtn.waitFor({ timeout: 8000 })
+    await guestBtn.click()
+    await page.waitForTimeout(3000)
+    console.log(`  ✓ [Gate 3] Guest modal dismissed`)
+  } catch {
+    // Non-fatal: modal may not appear if cookie already set
+    console.log(`  ✓ [Gate 3] No guest modal (already authenticated as guest)`)
+  }
+
+  // ── Confirm product grid is visible ──────────────────────────────────────
+  console.log(`  🔍 Waiting for product grid...`)
+  try {
+    // Curaleaf product cards have a data-testid or contain price elements
+    await page.waitForSelector(
+      '[data-testid*="product"], [class*="ProductCard"], [class*="product-card"], [class*="ProductGrid"]',
+      { timeout: 10000 }
+    )
+    console.log(`  ✓ Product grid confirmed`)
+    return true
+  } catch {
+    // Fallback: check for any price element as proxy for product grid
+    try {
+      await page.waitForSelector('[class*="price"], [class*="Price"]', { timeout: 5000 })
+      console.log(`  ✓ Product grid confirmed (price elements found)`)
+      return true
+    } catch {
+      console.error(`  ✗ Product grid never appeared — gate sequence may have failed`)
+      return false
+    }
+  }
+}
 
 
 function parseSweedProducts(items: unknown[]): InterceptedProduct[] {
@@ -892,12 +1058,9 @@ function parseSweedProducts(items: unknown[]): InterceptedProduct[] {
 }
 
 async function scrapeCuraleaf(
-  browser: Awaited<ReturnType<typeof chromium.launch>>,
+  context: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>['newContext']>>,
   dispensary: typeof CURALEAF_DISPENSARIES[number]
 ): Promise<InterceptedProduct[]> {
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  })
   const page = await context.newPage()
   const sweedResponses: { url: string; body: unknown }[] = []
 
@@ -911,42 +1074,20 @@ async function scrapeCuraleaf(
     }
   })
 
-  console.log(`  🌐 Navigating to ${dispensary.url}`)
-  try {
-    await page.goto(dispensary.url, { waitUntil: 'domcontentloaded', timeout: 30000 })
-    await page.waitForTimeout(3000)
-
-    // Handle Curaleaf age gate: select Nevada then click "I'm over 21"
-    if (page.url().includes('age-gate')) {
-      try {
-        await page.locator('button').filter({ hasText: 'State' }).first().click()
-        await page.waitForTimeout(600)
-        await page.getByRole('option', { name: /nevada/i }).click()
-        await page.waitForTimeout(600)
-        await page.locator("button:has-text(\"I'm over 21\")").first().click()
-        await page.waitForTimeout(4000)
-        console.log(`  🔞 Age gate passed → ${page.url()}`)
-      } catch (e) {
-        console.error('  ✗ Age gate failed:', e)
-        await context.close()
-        return []
-      }
-    }
-
-    await page.waitForTimeout(4000)
-
-    // Scroll to load all product carousels
-    for (let i = 1; i <= 5; i++) {
-      await page.evaluate((step) => window.scrollTo(0, (document.body.scrollHeight / 5) * step), i)
-      await page.waitForTimeout(600)
-    }
-    await page.waitForTimeout(3000)
-
-  } catch (err) {
-    console.error(`  ✗ Navigation failed: ${err}`)
-    await context.close()
+  // Navigate through all 3 gate layers (age gate cookie persists in shared context)
+  const gateOk = await navigateCuraleafGate(page, dispensary.url)
+  if (!gateOk) {
+    console.error(`  ✗ Gate sequence failed for ${dispensary.slug}`)
+    await page.close()
     return []
   }
+
+  // Scroll to trigger lazy-loaded product carousels / Sweed API calls
+  for (let i = 1; i <= 5; i++) {
+    await page.evaluate((step) => window.scrollTo(0, (document.body.scrollHeight / 5) * step), i)
+    await page.waitForTimeout(600)
+  }
+  await page.waitForTimeout(3000)
 
   console.log(`  📡 ${sweedResponses.length} Sweed API responses intercepted`)
 
@@ -989,7 +1130,7 @@ async function scrapeCuraleaf(
     return true
   })
 
-  await context.close()
+  await page.close()
   return unique
 }
 
@@ -1021,6 +1162,7 @@ async function deleteStaleProducts(dispensaryId: string, scrapedProducts: Interc
 async function main() {
   const janeOnly = process.argv.includes('--jane-only')
   const dutchieOnly = process.argv.includes('--dutchie-only')
+  const curaleafOnly = process.argv.includes('--curaleaf-only')
 
   console.log('🌿 Las Vegas Dispensary Scraper Starting...')
   if (janeOnly) console.log('  Mode: Jane-only')
@@ -1036,7 +1178,7 @@ async function main() {
   let totalFailed = 0
 
   for (const dispensary of LAS_VEGAS_DUTCHIE_SLUGS) {
-    if (janeOnly) continue
+    if (janeOnly || curaleafOnly) continue
     if (TEST_MODE && !TEST_SLUGS.includes(dispensary.slug)) {
       console.log(`  ⏭ TEST_MODE: skipping ${dispensary.slug}`)
       continue
@@ -1086,7 +1228,7 @@ async function main() {
   }
 
   // ── Thrive (iHeartJane) ───────────────────────────────────────────────────
-  if (!dutchieOnly) {
+  if (!dutchieOnly && !curaleafOnly) {
   console.log('\n\n══ iHeartJane ══')
   for (const dispensary of THRIVE_DISPENSARIES) {
     if (TEST_MODE && !TEST_SLUGS.includes(dispensary.slug)) {
@@ -1121,13 +1263,23 @@ async function main() {
   // ── Curaleaf (Sweed POS) ──────────────────────────────────────────────────
   if (!janeOnly && !dutchieOnly) {
   console.log('\n\n══ Curaleaf (Sweed POS) ══')
+  if (curaleafOnly) console.log('  Mode: Curaleaf-only')
+
+  // Single persistent context shared across all Curaleaf stores so the age gate
+  // cookie (set on the first store) carries through to subsequent stores.
+  const curaleafContext = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    viewport: { width: 1280, height: 800 },
+    locale: 'en-US',
+  })
+
   for (const dispensary of CURALEAF_DISPENSARIES) {
-    if (TEST_MODE) {
+    if (TEST_MODE && !TEST_SLUGS.includes(dispensary.slug)) {
       console.log(`  ⏭ TEST_MODE: skipping ${dispensary.slug}`)
       continue
     }
     console.log(`\n🏪 Scraping: ${dispensary.slug}`)
-    const products = await scrapeCuraleaf(browser, dispensary)
+    const products = await scrapeCuraleaf(curaleafContext, dispensary)
 
     if (products.length === 0) {
       console.log(`  ⚠ No products found for ${dispensary.slug}`)
@@ -1149,6 +1301,7 @@ async function main() {
 
     await new Promise(resolve => setTimeout(resolve, 2000))
   }
+  await curaleafContext.close()
   } // end !janeOnly && !dutchieOnly
 
   await browser.close()
