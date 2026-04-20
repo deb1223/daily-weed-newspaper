@@ -77,7 +77,7 @@ function LoginInner() {
           color: "var(--muted)",
           marginBottom: "12px",
         }}>
-          Ziggy&apos;s Drip &middot; {step === "email" ? "Members" : "Verification"}
+          Ziggy&apos;s Drip &middot; {step === "email" ? "Members" : "Check Your Inbox"}
         </div>
 
         {/* Headline */}
@@ -106,8 +106,8 @@ function LoginInner() {
           marginBottom: "28px",
         }}>
           {step === "email"
-            ? "Drop your email. I'll send you a 6-digit code. No passwords, no drama."
-            : <>I sent a 6-digit code to <strong style={{ color: "var(--ink)" }}>{email}</strong>. Enter it below.</>
+            ? "Drop your email. I'll send you a magic link. No passwords, no drama."
+            : <>Magic link sent to <strong style={{ color: "var(--ink)" }}>{email}</strong>. Click the link to sign in — it expires in 10 minutes.</>
           }
         </p>
 
@@ -129,11 +129,21 @@ function LoginInner() {
               disabled={loading}
               style={btnStyle(loading)}
             >
-              {loading ? "Sending…" : "Send the code →"}
+              {loading ? "Sending…" : "Send the link →"}
             </button>
           </form>
         ) : (
           <form onSubmit={handleVerifyOtp}>
+            <div style={{
+              fontFamily: "Space Mono, monospace",
+              fontSize: "10px",
+              textTransform: "uppercase",
+              letterSpacing: "0.1em",
+              color: "var(--muted)",
+              marginBottom: "8px",
+            }}>
+              Or enter the code from the email
+            </div>
             <input
               type="text"
               inputMode="numeric"
@@ -242,7 +252,7 @@ function ErrorMsg({ children }: { children: React.ReactNode }) {
 /** Translate Supabase error messages into Ziggy-voiced copy. */
 function ziggyError(msg: string): string {
   if (/invalid.*otp|token.*expired|expired/i.test(msg))
-    return "That code's dead. Codes expire after 10 minutes — hit 'start over' and I'll send a fresh one.";
+    return "That link's expired. Links are good for 10 minutes — hit 'start over' and I'll send a fresh one.";
   if (/rate.?limit|too many/i.test(msg))
     return "Easy. Too many requests. Give it a minute and try again.";
   if (/invalid.*email|email.*invalid/i.test(msg))

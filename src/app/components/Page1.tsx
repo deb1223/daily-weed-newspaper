@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PageData } from "@/lib/data";
 import { displayProductSize, calcMgPerDollar } from "@/lib/format";
 import EmailSignupForm from "./EmailSignupForm";
+import AuthLabel from "./AuthLabel";
 
 const ZIGGY_LINERS = [
   "these idiots finally remembered how to run a sale",
@@ -53,7 +54,10 @@ export default function Page1({ data }: { data: PageData }) {
             We tell you what&apos;s worth smoking and what&apos;s corporate
             robbery
           </span>
-          <span>{today}</span>
+          <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "3px" }}>
+            <span>{today}</span>
+            <span className="auth-label-desktop"><AuthLabel /></span>
+          </span>
         </div>
         <h1 className="masthead-title">Daily Weed Newspaper</h1>
         <p className="masthead-subhead">
@@ -66,6 +70,11 @@ export default function Page1({ data }: { data: PageData }) {
           Nevada
         </p>
       </header>
+
+      {/* Auth label — mobile only (desktop version lives in masthead-topbar) */}
+      <div className="auth-label-mobile-wrapper">
+        <AuthLabel />
+      </div>
 
       {/* TICKER */}
       <div className="ticker-bar">

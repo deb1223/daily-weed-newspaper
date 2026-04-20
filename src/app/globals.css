@@ -833,6 +833,10 @@ body::after {
   .p3-col-right { padding: 0 0 24px 0 !important; }
 }
 
+/* Auth label: desktop shows inside topbar, mobile shows below masthead */
+.auth-label-desktop { display: inline; }
+.auth-label-mobile-wrapper { display: none; }
+
 @media (max-width: 768px) {
   .masthead-tagline { display: none; }
 }
@@ -842,6 +846,16 @@ body::after {
   .stats-row .stat-box:nth-child(2) { border-right: none; }
   .masthead-topbar { font-size: 9px; flex-direction: column; gap: 2px; text-align: center; }
   .pricing-tiers { grid-template-columns: 1fr; }
+  .auth-label-desktop { display: none; }
+  .auth-label-mobile-wrapper {
+    display: block;
+    text-align: right;
+    padding: 4px 16px;
+    font-family: "Space Mono", monospace;
+    font-size: 10px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--aged);
+  }
 }
 
 /* ─── PAGE NAVIGATION BAR ───────────────────────────────────── */

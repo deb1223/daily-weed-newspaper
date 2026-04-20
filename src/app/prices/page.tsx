@@ -250,6 +250,11 @@ function PricesPageInner() {
     return () => document.removeEventListener("keydown", handleEsc);
   }, [compareModal]);
 
+  // Clear stale upsell tooltip the moment Pro status is confirmed
+  useEffect(() => {
+    if (isProUser) setValueSortMsg(false);
+  }, [isProUser]);
+
   const sizeOptions = SIZE_OPTIONS[category] ?? null;
   const sizeLabel = category === "Edibles" || category === "Tinctures" ? "Dose" : "Size";
   const showSizeFilter = !!sizeOptions;
@@ -507,6 +512,7 @@ function PricesPageInner() {
 
   const handleSort = (field: SortField) => {
     if (field === "value") {
+      if (authLoading) return; // wait for auth to resolve before gating
       if (!isProUser) {
         setValueSortMsg(true);
         setTimeout(() => setValueSortMsg(false), 4000);
@@ -1014,7 +1020,7 @@ function PricesPageInner() {
                         ? " ↓"
                         : " ↑"
                       : ""}
-                    {valueSortMsg && (
+                    {valueSortMsg && !isProUser && (
                       <div
                         style={{
                           position: "absolute",

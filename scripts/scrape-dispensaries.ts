@@ -673,16 +673,16 @@ function parseJaneProducts(products: Record<string, unknown>[], storeId: number)
       weightGrams = nameWeight
     } else {
       // Fallback: available_weights is a Jane structured field listing selectable size buckets.
-      // Values are unit labels ("gram", "half_gram", "two_gram"), not parseable weight strings.
+      // Values are unit labels ("gram", "half gram", "two gram"), not parseable weight strings.
       // This covers plain-named products (e.g. "Ape" vape carts, loose flower sold per gram).
       const JANE_WEIGHT_MAP: Record<string, number> = {
-        half_gram: 0.5,
-        gram:      1,
-        two_gram:  2,
-        eighth:    3.5,
-        quarter:   7,
-        half:      14,
-        ounce:     28,
+        'half gram': 0.5,
+        'gram':      1,
+        'two gram':  2,
+        'eighth':    3.5,
+        'quarter':   7,
+        'half':      14,
+        'ounce':     28,
       }
       const availableWeights = sa.available_weights as string[] | undefined
       if (Array.isArray(availableWeights) && availableWeights.length > 0) {
