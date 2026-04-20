@@ -74,6 +74,25 @@ export function welcomeEmailHtml(tier: string): string {
   <!-- DIVIDER -->
   <tr><td style="padding:0 32px;"><div style="border-top:1px solid #c8b99a;"></div></td></tr>
 
+  ${tier === "pro" ? `<!-- PRO ACCESS CTA -->
+  <tr>
+    <td style="padding:24px 32px;text-align:center;">
+      <div style="font-family:'Space Mono',monospace,monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.12em;color:#6b5e45;margin-bottom:12px;">
+        Your Pro access is live
+      </div>
+      <a href="https://www.dailyweednewspaper.com/login?next=/prices"
+         style="display:inline-block;background:#1a1008;color:#f4f0e4;font-family:'Space Mono',monospace,monospace;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;text-decoration:none;padding:13px 28px;border:none;">
+        Access Pro Features →
+      </a>
+      <div style="font-family:'Space Mono',monospace,monospace;font-size:9px;color:#6b5e45;margin-top:10px;">
+        Log in once — stays active. No password required.
+      </div>
+    </td>
+  </tr>
+
+  <!-- DIVIDER -->
+  <tr><td style="padding:0 32px;"><div style="border-top:1px solid #c8b99a;"></div></td></tr>` : ""}
+
   <!-- ZIGGY SIGN-OFF -->
   <tr>
     <td style="padding:20px 32px;">

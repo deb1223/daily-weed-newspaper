@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useUser } from "@/hooks/useUser";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { displayProductSize, calcMgPerDollar } from "@/lib/format";
@@ -231,7 +232,8 @@ function PricesPageInner() {
   const [hotDeal, setHotDeal] = useState<HotDeal | null>(null);
   const [lastScraped, setLastScraped] = useState<string | null>(null);
 
-  const isPro = true; // wire to auth later
+  const { user, tier, loading: authLoading } = useUser();
+  const isProUser = tier === "pro";
   const [valueSortMsg, setValueSortMsg] = useState(false);
 
   const [compareModal, setCompareModal] = useState<{
@@ -505,9 +507,9 @@ function PricesPageInner() {
 
   const handleSort = (field: SortField) => {
     if (field === "value") {
-      if (!isPro) {
+      if (!isProUser) {
         setValueSortMsg(true);
-        setTimeout(() => setValueSortMsg(false), 3000);
+        setTimeout(() => setValueSortMsg(false), 4000);
         return;
       }
       if (sortField !== "value") {
@@ -635,6 +637,50 @@ function PricesPageInner() {
             </span>
           </div>
         </Link>
+        {!authLoading && (
+          <div style={{
+            fontFamily: "Space Mono, monospace",
+            fontSize: "10px",
+            letterSpacing: "0.05em",
+            whiteSpace: "nowrap",
+          }}>
+            {!user && (
+              <Link href="/login?next=/prices" style={{ color: "var(--accent)", textDecoration: "none" }}>
+                Log in for Pro →
+              </Link>
+            )}
+            {user && !isProUser && (
+              <button
+                onClick={async () => {
+                  const res = await fetch("/api/checkout", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({}),
+                  });
+                  if (res.ok) {
+                    const { url } = await res.json();
+                    window.location.href = url;
+                  }
+                }}
+                style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--accent)", padding: 0, letterSpacing: "0.05em" }}
+              >
+                Upgrade to Pro →
+              </button>
+            )}
+            {user && isProUser && (
+              <span style={{ color: "var(--deal-green)" }}>
+                Pro ✓
+                {" · "}
+                <button
+                  onClick={() => supabase.auth.signOut()}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", padding: 0, textDecoration: "underline" }}
+                >
+                  sign out
+                </button>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <h1 className="prices-h1">
@@ -974,19 +1020,28 @@ function PricesPageInner() {
                           position: "absolute",
                           top: "100%",
                           left: 0,
-                          width: "180px",
+                          width: "200px",
                           fontFamily: "Space Mono, monospace",
                           fontSize: "9px",
                           color: "var(--muted)",
                           fontWeight: 400,
-                          background: "var(--paper)",
-                          border: "1px solid var(--aged)",
-                          padding: "4px 6px",
+                          background: "var(--newsprint)",
+                          border: "2px solid var(--ink)",
+                          padding: "6px 8px",
                           zIndex: 10,
-                          lineHeight: 1.4,
+                          lineHeight: 1.5,
                         }}
                       >
-                        Sort by value score is a Pro feature — $9/month
+                        Pro feature — $9/mo.{" "}
+                        {user ? (
+                          <a href="/api/checkout" style={{ color: "var(--accent)", textDecoration: "underline" }}>
+                            Upgrade →
+                          </a>
+                        ) : (
+                          <a href="/login?next=/prices" style={{ color: "var(--accent)", textDecoration: "underline" }}>
+                            Log in or upgrade →
+                          </a>
+                        )}
                       </div>
                     )}
                   </th>
@@ -1203,7 +1258,7 @@ function PricesPageInner() {
                   >
                     Found at {compareModal.totalCount} dispensar
                     {compareModal.totalCount === 1 ? "y" : "ies"}
-                    {compareModal.totalCount > FREE_COMPARE_LIMIT &&
+                    {!isProUser && compareModal.totalCount > FREE_COMPARE_LIMIT &&
                       ` — showing top ${FREE_COMPARE_LIMIT} free`}
                   </div>
                   <table className="compare-table">
@@ -1218,7 +1273,7 @@ function PricesPageInner() {
                     </thead>
                     <tbody>
                       {compareModal.results
-                        .slice(0, FREE_COMPARE_LIMIT)
+                        .slice(0, isProUser ? undefined : FREE_COMPARE_LIMIT)
                         .map((r, i) => (
                           <tr
                             key={i}
@@ -1295,22 +1350,33 @@ function PricesPageInner() {
                               )}
                             </td>
                             <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                              <span className="pro-badge">PRO</span>
-                              <a
-                                href={r.productUrl || r.viewUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="view-menu-link"
-                              >
-                                {r.productUrl ? "View Product →" : "View Menu →"}
-                              </a>
+                              {isProUser ? (
+                                <a
+                                  href={r.productUrl || r.viewUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="view-menu-link"
+                                >
+                                  {r.productUrl ? "View Product →" : "View Menu →"}
+                                </a>
+                              ) : (
+                                <span
+                                  style={{
+                                    fontFamily: "Space Mono, monospace",
+                                    fontSize: "10px",
+                                    color: "var(--muted)",
+                                  }}
+                                >
+                                  Pro only
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))}
                     </tbody>
                   </table>
 
-                  {compareModal.totalCount > FREE_COMPARE_LIMIT && (
+                  {!isProUser && compareModal.totalCount > FREE_COMPARE_LIMIT && (
                     <div className="modal-upsell">
                       <div
                         style={{

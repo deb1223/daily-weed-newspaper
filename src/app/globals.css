@@ -495,6 +495,11 @@ body::after {
 .mini-masthead {
   border-bottom: 3px double var(--ink);
   margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 24px;
+  gap: 16px;
 }
 
 .mini-masthead-link {
