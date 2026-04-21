@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AgeGate from "./components/AgeGate";
 
 export const metadata: Metadata = {
   title: "Daily Weed Newspaper — Cannabis Price Intelligence",
@@ -38,7 +39,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AgeGate />
+        {children}
+      </body>
     </html>
   );
 }

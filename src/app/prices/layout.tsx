@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Las Vegas Cannabis Price Comparison — Daily Weed Newspaper",
+  title: "Best Dispensary Deals in Las Vegas Today | Daily Weed Newspaper",
   description:
-    "Real-time cannabis product prices from dispensaries across Las Vegas, NV. Compare flower, edibles, vapes, and concentrates. Updated hourly.",
+    "Compare cannabis prices across every Las Vegas dispensary. Sort by THC mg per dollar and find the best deals — updated daily.",
   alternates: {
     canonical: "https://www.dailyweednewspaper.com/prices",
   },
