@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { displayProductSize, calcMgPerDollar } from "@/lib/format";
 import TerpProfileSelector, { type ProfileKey, TERP_PROFILES } from "@/components/TerpProfileSelector";
+import ConnectToClaudeButton from "@/app/components/ConnectToClaudeButton";
 
 interface Dispensary {
   name: string;
@@ -701,6 +702,11 @@ function PricesPageInner() {
         activeProfile={activeProfile}
         onSelectProfile={handleProfileSelect}
       />
+
+      {/* Connect to Claude */}
+      <div style={{ marginBottom: "16px" }}>
+        <ConnectToClaudeButton />
+      </div>
 
       {/* Search Zone */}
       <div className="search-zone">
