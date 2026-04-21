@@ -1022,8 +1022,19 @@ function parseSweedProducts(items: unknown[]): InterceptedProduct[] {
         const sizeName = v.name ? ` ${v.name}` : ''
         const fullName = variants.length > 1 ? `${name}${sizeName}` : name
 
-        // Weight: v.name holds the size label (e.g. "3.5g", "1g", "7g")
-        const weightGrams = parseWeight(String(v.name || '')) || parseWeight(fullName) || undefined
+        // Weight: primary source is unitSize structured field (no regex needed).
+        // Fallback to v.name label (e.g. "3.5g", "1g") or full product name.
+        const unitSize = v.unitSize as { value?: number; unitAbbr?: string } | undefined
+        let weightGrams: number | undefined
+        if (unitSize?.value && unitSize.value > 0) {
+          const abbr = String(unitSize.unitAbbr || '').toUpperCase()
+          if (abbr === 'MG') weightGrams = unitSize.value / 1000
+          else if (abbr === 'OZ') weightGrams = unitSize.value * 28.35
+          else weightGrams = unitSize.value // G or unlabelled → grams
+        }
+        if (!weightGrams) {
+          weightGrams = parseWeight(String(v.name || '')) || parseWeight(fullName) || undefined
+        }
 
         products.push({
           name:          fullName,
@@ -1137,12 +1148,17 @@ async function scrapeCuraleaf(
 async function deleteStaleProducts(dispensaryId: string, scrapedProducts: InterceptedProduct[]): Promise<number> {
   const { data: existing } = await supabase
     .from('products')
-    .select('id, name')
+    .select('id, name, weight_grams')
     .eq('dispensary_id', dispensaryId)
 
-  const scrapedNames = new Set(scrapedProducts.map(p => p.name))
+  // Key on (name, weight_grams) so that old null-weight rows are removed when
+  // the scraper now extracts a real weight for the same product name.
+  // weight_grams is coerced to string for null-safe comparison: null → ''.
+  const currentKeys = new Set(
+    scrapedProducts.map(p => `${p.name}||${p.weightGrams ?? ''}`)
+  )
   const staleIds = (existing ?? [])
-    .filter(row => !scrapedNames.has(row.name))
+    .filter(row => !currentKeys.has(`${String(row.name)}||${(row as Record<string, unknown>).weight_grams ?? ''}`))
     .map(row => row.id as string)
 
   if (staleIds.length === 0) return 0

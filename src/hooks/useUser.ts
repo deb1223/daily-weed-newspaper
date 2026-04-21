@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import type { Tier } from "@/lib/auth";
@@ -23,6 +23,10 @@ export function useUser(): UserState {
   const [user, setUser] = useState<User | null>(null);
   const [tier, setTier] = useState<Tier>(null);
   const [loading, setLoading] = useState(true);
+  // Prevents the initial onAuthStateChange SIGNED_IN event (which fires
+  // immediately on mount in parallel with getSession) from running a second
+  // fetchTier and overwriting the tier resolved by getSession.
+  const initialLoadDone = useRef(false);
 
   async function fetchTier(email: string) {
     const { data } = await supabase
@@ -34,21 +38,27 @@ export function useUser(): UserState {
   }
 
   useEffect(() => {
-    // Initial session on mount
+    // Single source of truth for the initial tier fetch.
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null;
       setUser(u);
       if (u?.email) {
-        fetchTier(u.email).finally(() => setLoading(false));
+        fetchTier(u.email).finally(() => {
+          initialLoadDone.current = true;
+          setLoading(false);
+        });
       } else {
+        initialLoadDone.current = true;
         setLoading(false);
       }
     });
 
-    // Keep in sync with login / logout events
+    // Only handles mid-session auth changes (new sign-in, sign-out).
+    // Skips the initial SIGNED_IN that fires on mount — getSession() owns that.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!initialLoadDone.current) return;
       const u = session?.user ?? null;
       setUser(u);
       if (u?.email) {
