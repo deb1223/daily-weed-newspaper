@@ -8,6 +8,7 @@ import type { Tier } from "@/lib/auth";
 export interface UserState {
   user: User | null;
   tier: Tier;
+  subscriptionStatus: string | null;
   loading: boolean;
 }
 
@@ -22,6 +23,7 @@ export interface UserState {
 export function useUser(): UserState {
   const [user, setUser] = useState<User | null>(null);
   const [tier, setTier] = useState<Tier>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   // Prevents the initial onAuthStateChange SIGNED_IN event (which fires
   // immediately on mount in parallel with getSession) from running a second
@@ -31,10 +33,15 @@ export function useUser(): UserState {
   async function fetchTier(email: string) {
     const { data } = await supabase
       .from("subscribers")
-      .select("tier")
+      .select("tier, subscription_status")
       .eq("email", email)
       .maybeSingle();
-    setTier((data?.tier as Tier) ?? "free");
+    const status = data?.subscription_status ?? "free";
+    setSubscriptionStatus(status);
+    // trialing counts as pro-level access
+    const effectiveTier: Tier =
+      data?.tier === "pro" || status === "trialing" ? "pro" : "free";
+    setTier(effectiveTier);
   }
 
   useEffect(() => {
@@ -65,11 +72,12 @@ export function useUser(): UserState {
         fetchTier(u.email);
       } else {
         setTier(null);
+        setSubscriptionStatus(null);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  return { user, tier, loading };
+  return { user, tier, subscriptionStatus, loading };
 }

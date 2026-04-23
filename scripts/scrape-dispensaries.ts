@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { chromium, type Page } from 'playwright'
 import * as dotenv from 'dotenv'
 import path from 'path'
+import { classifySubtype } from './classify-subtype'
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') })
 
@@ -62,6 +63,9 @@ const LAS_VEGAS_DUTCHIE_SLUGS = [
   { slug: 'the-sanctuary-downtown',               path: 'dispensary' },
   { slug: 'shango-vegas',                          path: 'dispensary' },
   { slug: 'mmj-america-vegas',                     path: 'dispensary' },
+  // Added April 22 2026
+  { slug: 'mynt-cannabis-dispensary',              path: 'dispensary' }, // The Dispensary Henderson (Gibson) — registered under old brand name in Dutchie
+  { slug: 'vegas-treehouse',                       path: 'stores'     }, // The Treehouse Vegas — Dutchie white-label, dutchie.com/stores/vegas-treehouse
 ]
 
 interface InterceptedResponse {
@@ -448,14 +452,28 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 async function upsertSingleProduct(
   product: InterceptedProduct,
   dispensaryId: string,
-  source: 'dutchie' | 'jane' | 'curaleaf'
+  source: 'dutchie' | 'jane' | 'curaleaf' | 'carrot'
 ): Promise<'inserted' | 'updated' | 'failed'> {
+  // Carrot products carry terpene data via a private field
+  const terpenes = (product as InterceptedProduct & { _carrotTerpenes?: Record<string, number> })._carrotTerpenes ?? {}
+
+  // Classify subtype using shared classifier.
+  // Native subcategory field (from Jane: custom_product_subtype / root_subtype / brand_subtype)
+  // is checked first inside classifySubtype(); keyword classifier runs as fallback.
+  const subtype = classifySubtype({
+    name:        product.name,
+    category:    product.category,
+    subcategory: product.subcategory,
+    brand:       product.brand,
+  })
+
   const payload = {
     dispensary_id: dispensaryId,
     name: product.name,
     brand: product.brand || null,
     category: product.category || null,
     subcategory: product.subcategory || null,
+    subtype: subtype,
     strain_type: product.strainType || null,
     thc_percentage: (product.thcPercentage != null && product.thcPercentage >= 0 && product.thcPercentage <= 100) ? product.thcPercentage : null,
     cbd_percentage: (product.cbdPercentage != null && product.cbdPercentage >= 0 && product.cbdPercentage <= 100) ? product.cbdPercentage : null,
@@ -469,6 +487,17 @@ async function upsertSingleProduct(
     product_url: product.productUrl || null,
     source,
     last_scraped: new Date().toISOString(),
+    // Terpene columns (non-null only when Carrot provides lab data)
+    ...(terpenes.terpene_myrcene        != null ? { terpene_myrcene:        terpenes.terpene_myrcene        } : {}),
+    ...(terpenes.terpene_limonene       != null ? { terpene_limonene:       terpenes.terpene_limonene       } : {}),
+    ...(terpenes.terpene_caryophyllene  != null ? { terpene_caryophyllene:  terpenes.terpene_caryophyllene  } : {}),
+    ...(terpenes.terpene_linalool       != null ? { terpene_linalool:       terpenes.terpene_linalool       } : {}),
+    ...(terpenes.terpene_pinene         != null ? { terpene_pinene:         terpenes.terpene_pinene         } : {}),
+    ...(terpenes.terpene_terpinolene    != null ? { terpene_terpinolene:    terpenes.terpene_terpinolene    } : {}),
+    ...(terpenes.terpene_ocimene        != null ? { terpene_ocimene:        terpenes.terpene_ocimene        } : {}),
+    ...(terpenes.terpene_humulene       != null ? { terpene_humulene:       terpenes.terpene_humulene       } : {}),
+    ...(terpenes.terpene_nerolidol      != null ? { terpene_nerolidol:      terpenes.terpene_nerolidol      } : {}),
+    ...(terpenes.terpene_bisabolol      != null ? { terpene_bisabolol:      terpenes.terpene_bisabolol      } : {}),
   }
 
   // True upsert against the existing unique index on (dispensary_id, name, weight_grams).
@@ -489,7 +518,7 @@ async function upsertSingleProduct(
 async function upsertProducts(
   dispensaryId: string,
   products: InterceptedProduct[],
-  source: 'dutchie' | 'jane' | 'curaleaf'
+  source: 'dutchie' | 'jane' | 'curaleaf' | 'carrot'
 ): Promise<{ inserted: number; updated: number; failed: number }> {
   let inserted = 0
   let updated = 0
@@ -568,6 +597,8 @@ const THRIVE_DISPENSARIES = [
   { slug: 'tree-of-life-las-vegas',            name: 'Tree of Life - Las Vegas',                          url: 'https://iheartjane.com/stores/4219/tree-of-life-las-vegas/menu',      storeId: 4219 },
   { slug: 'tree-of-life-north-las-vegas',      name: 'Tree of Life - North Las Vegas',                    url: 'https://iheartjane.com/stores/3274/tree-of-life-north-las-vegas/menu', storeId: 3274 },
   { slug: 'zen-leaf-fort-apache',              name: 'Zen Leaf - Fort Apache',                            url: 'https://iheartjane.com/stores/1648/zen-leaf-fort-apache/menu',        storeId: 1648 },
+  // Added April 22 2026
+  { slug: 'oasis-medical-cannabis',            name: 'Oasis Medical Cannabis',                            url: 'https://iheartjane.com/stores/1649/oasis-medical-cannabis/menu',      storeId: 1649 },
 ]
 
 function parseJaneProducts(products: Record<string, unknown>[], storeId: number): InterceptedProduct[] {
@@ -846,6 +877,8 @@ const CURALEAF_DISPENSARIES = [
   { slug: 'curaleaf-nv-las-vegas',       name: 'Curaleaf NV Las Vegas',       url: 'https://curaleaf.com/shop/nevada/curaleaf-nv-las-vegas/recreational' },
   { slug: 'curaleaf-north-las-vegas',    name: 'Curaleaf North Las Vegas',    url: 'https://curaleaf.com/shop/nevada/curaleaf-north-las-vegas/recreational' },
   { slug: 'curaleaf-las-vegas-western',  name: 'Curaleaf Las Vegas Western',  url: 'https://curaleaf.com/shop/nevada/curaleaf-las-vegas-western-ave/recreational' },
+  // Added April 22 2026
+  { slug: 'curaleaf-reef-las-vegas-strip', name: 'Curaleaf REEF Las Vegas Strip', url: 'https://curaleaf.com/shop/nevada/reef-dispensary-las-vegas-strip/recreational' },
 ]
 
 /**
@@ -1145,6 +1178,261 @@ async function scrapeCuraleaf(
   return unique
 }
 
+// ─── Carrot (getcarrot.io) scraper ───────────────────────────────────────────
+
+interface CarrotDispensary {
+  slug: string
+  name: string
+  apiUrl: string   // e.g. https://api.nevada.getcarrot.io/api/v1
+  spaceId: number  // CARROT_SPACE_ID from the dispensary's embed
+  locId: number    // internal location ID (1 for single-location, or specific per-location)
+  website: string  // dispensary website base URL for product URL construction
+}
+
+const CARROT_DISPENSARIES: CarrotDispensary[] = [
+  // Added April 22 2026
+  { slug: 'the-spot-nv',             name: 'The Spot',                              apiUrl: 'https://api.nevada.getcarrot.io/api/v1', spaceId: 49, locId: 1, website: 'https://thespotnv.com'          },
+  { slug: 'wallflower-blue-diamond', name: 'Wallflower Cannabis House (Blue Diamond)',   apiUrl: 'https://api.wallflower-house.com/api/v1', spaceId: 1,  locId: 1, website: 'https://wallflower-house.com' },
+  { slug: 'wallflower-inspirada',    name: 'Wallflower Cannabis House (Henderson)',       apiUrl: 'https://api.wallflower-house.com/api/v1', spaceId: 1,  locId: 2, website: 'https://wallflower-house.com' },
+  { slug: 'showgrow-las-vegas',      name: 'ShowGrow Las Vegas',                     apiUrl: 'https://sg-api.getcarrot.io/api/v1',        spaceId: 1,  locId: 1, website: 'https://store.showgrowvegas.com' },
+]
+
+// Carrot requires a UUID for Carrot-Anonymous-Id per session
+function generateUuid(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
+// Terpene name normalization: Carrot uses PascalCase strings
+const CARROT_TERPENE_MAP: Record<string, string> = {
+  BetaMyrcene:         'terpene_myrcene',
+  Myrcene:             'terpene_myrcene',
+  Limonene:            'terpene_limonene',
+  BetaCaryophyllene:   'terpene_caryophyllene',
+  Caryophyllene:       'terpene_caryophyllene',
+  Linalool:            'terpene_linalool',
+  AlphaPinene:         'terpene_pinene',
+  BetaPinene:          'terpene_pinene',   // add to alpha pinene below
+  Terpinolene:         'terpene_terpinolene',
+  Ocimene:             'terpene_ocimene',
+  Humulene:            'terpene_humulene',
+  Nerolidol:           'terpene_nerolidol',
+  TransNerolidol:      'terpene_nerolidol',
+  Bisabolol:           'terpene_bisabolol',
+  AlphaBisabolol:      'terpene_bisabolol',
+}
+
+interface CarrotLabResult {
+  labTest: { THC?: Record<string, unknown>; CBD?: Record<string, unknown>; Other?: { value: string } }
+  value: number
+  labResultUnit: { Percentage?: Record<string, unknown>; MilligramsPerGram?: Record<string, unknown> }
+}
+
+interface CarrotTerpenes {
+  terpene_myrcene?: number
+  terpene_limonene?: number
+  terpene_caryophyllene?: number
+  terpene_linalool?: number
+  terpene_pinene?: number
+  terpene_terpinolene?: number
+  terpene_ocimene?: number
+  terpene_humulene?: number
+  terpene_nerolidol?: number
+  terpene_bisabolol?: number
+}
+
+function parseCarrotLabResults(labResults: CarrotLabResult[]): { thc: number | undefined; cbd: number | undefined; terpenes: CarrotTerpenes } {
+  let thc: number | undefined
+  let cbd: number | undefined
+  const terpenes: CarrotTerpenes = {}
+
+  for (const lab of labResults) {
+    const isMgPerG = 'MilligramsPerGram' in lab.labResultUnit
+    // Convert mg/g → % (1 mg/g = 0.1%)
+    const pct = isMgPerG ? lab.value / 10 : lab.value
+
+    if ('THC' in lab.labTest) {
+      thc = pct
+    } else if ('CBD' in lab.labTest) {
+      cbd = pct
+    } else if (lab.labTest.Other?.value) {
+      const col = CARROT_TERPENE_MAP[lab.labTest.Other.value]
+      if (col && pct > 0) {
+        const key = col as keyof CarrotTerpenes
+        // For BetaPinene: add to AlphaPinene total
+        terpenes[key] = (terpenes[key] ?? 0) + pct
+      }
+    }
+  }
+
+  return { thc, cbd, terpenes }
+}
+
+function parseCarrotProducts(items: Record<string, unknown>[], dispensary: CarrotDispensary): InterceptedProduct[] {
+  const result: InterceptedProduct[] = []
+
+  for (const item of items) {
+    if (!item || typeof item !== 'object') continue
+
+    // Skip hidden products
+    const inner = item.product as Record<string, unknown> | undefined
+    if (inner?.hiddenInStore === true) continue
+
+    const name = String(item.name || '')
+    if (!name) continue
+
+    const brand    = String(item.brand || '')
+    const category = String(item.master || item.masterCategoryName || '')
+
+    // Skip merch categories
+    if (category.toLowerCase().includes('merch')) continue
+
+    // THC: prefer top-level thcPercentage (pre-computed by Carrot), fallback to labResults
+    let thcPercentage: number | undefined
+    let cbdPercentage: number | undefined
+    const terpenes: CarrotTerpenes = {}
+
+    const topThc = Number(item.thcPercentage ?? 0)
+    if (topThc > 0 && topThc <= 100) thcPercentage = topThc
+
+    if (inner) {
+      const labResults = (inner.labResults as CarrotLabResult[]) ?? []
+      if (labResults.length > 0) {
+        const parsed = parseCarrotLabResults(labResults)
+        if (!thcPercentage && parsed.thc != null) thcPercentage = parsed.thc
+        cbdPercentage = parsed.cbd
+        Object.assign(terpenes, parsed.terpenes)
+      }
+    }
+
+    const cashOptions = (item.cashOptions as Record<string, unknown>[]) ?? []
+    if (cashOptions.length === 0) continue
+
+    for (const opt of cashOptions) {
+      const price = parseFloat(String(opt.price ?? 0))
+      if (!price || price <= 0) continue
+
+      const available = opt.available !== false
+      const qty = Number(inner?.qty ?? 0)
+      const inStock = qty > 0 && available
+
+      // Weight: prefer opt.qty when unit is Grams, then item.unitWeight, then name parsing
+      let weightGrams: number | undefined
+      if (String(opt.optionUnit || '') === 'Grams') {
+        const w = parseFloat(String(opt.qty ?? 0))
+        if (w > 0) weightGrams = w
+      }
+      if (!weightGrams) {
+        const uw = parseFloat(String(item.unitWeight ?? 0))
+        if (uw > 0) weightGrams = uw
+      }
+      if (!weightGrams) {
+        weightGrams = parseWeight(name) ?? undefined
+      }
+
+      const slug = String(item.slug || '')
+      const productUrl = slug ? `${dispensary.website}/store/product/${slug}` : undefined
+
+      result.push({
+        name,
+        brand,
+        category,
+        thcPercentage,
+        cbdPercentage,
+        weightGrams,
+        price,
+        inStock,
+        productUrl,
+        // terpenes are stored separately — see upsertSingleProduct override below
+        ...(Object.keys(terpenes).length > 0 ? { _carrotTerpenes: terpenes } : {}),
+      } as InterceptedProduct & { _carrotTerpenes?: CarrotTerpenes })
+    }
+  }
+
+  return result
+}
+
+async function upsertDispensaryCarrot(dispensary: CarrotDispensary): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('dispensaries')
+    .upsert({
+      slug:          dispensary.slug,
+      name:          dispensary.name,
+      platform:      'carrot',
+      dutchie_url:   null,
+      last_scraped:  new Date().toISOString(),
+    }, { onConflict: 'slug' })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error(`  ✗ Failed to upsert dispensary ${dispensary.slug}:`, error.message)
+    return null
+  }
+  return data?.id || null
+}
+
+async function scrapeCarrot(dispensary: CarrotDispensary): Promise<InterceptedProduct[]> {
+  const anonId = generateUuid()
+  const headers = {
+    'Carrot-Space-Id':     String(dispensary.spaceId),
+    'Carrot-Anonymous-Id': anonId,
+    'Accept':              'application/json',
+  }
+
+  async function get(path: string): Promise<unknown> {
+    const url = `${dispensary.apiUrl}${path}`
+    const res = await fetch(url, { headers })
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} — ${url}`)
+    return res.json()
+  }
+
+  // Step 1: get categories
+  let categories: Record<string, unknown>[]
+  try {
+    categories = (await get(`/store/category?locId=${dispensary.locId}&platform=web`)) as Record<string, unknown>[]
+  } catch (err) {
+    console.error(`  ✗ Category fetch failed: ${err}`)
+    return []
+  }
+
+  const slugs = categories
+    .filter(c => c.showWeb !== false)
+    .map(c => String(c.slug))
+    .filter(s => s && !s.startsWith('merch'))
+
+  console.log(`  📋 ${slugs.length} categories: ${slugs.join(', ')}`)
+
+  // Step 2: fetch products per category
+  const allRaw: Record<string, unknown>[] = []
+  for (const slug of slugs) {
+    try {
+      const products = (await get(`/store/category/slug/${slug}/product?locId=${dispensary.locId}&platform=web`)) as Record<string, unknown>[]
+      console.log(`  ✓ ${slug}: ${products.length} products`)
+      allRaw.push(...products)
+    } catch (err) {
+      console.error(`  ✗ ${slug}: ${err}`)
+    }
+    // Polite delay between category requests
+    await new Promise(r => setTimeout(r, 300))
+  }
+
+  // Deduplicate by slug (same product can appear across overlapping categories)
+  const seen = new Set<string>()
+  const unique = allRaw.filter(p => {
+    const key = String(p.slug || p.id || p.name)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  console.log(`  📦 ${unique.length} unique products after dedup`)
+  return parseCarrotProducts(unique, dispensary)
+}
+
 async function deleteStaleProducts(dispensaryId: string, scrapedProducts: InterceptedProduct[]): Promise<number> {
   const { data: existing } = await supabase
     .from('products')
@@ -1176,14 +1464,17 @@ async function deleteStaleProducts(dispensaryId: string, scrapedProducts: Interc
 }
 
 async function main() {
-  const janeOnly = process.argv.includes('--jane-only')
-  const dutchieOnly = process.argv.includes('--dutchie-only')
+  const janeOnly     = process.argv.includes('--jane-only')
+  const dutchieOnly  = process.argv.includes('--dutchie-only')
   const curaleafOnly = process.argv.includes('--curaleaf-only')
+  const carrotOnly   = process.argv.includes('--carrot-only')
 
   console.log('🌿 Las Vegas Dispensary Scraper Starting...')
-  if (janeOnly) console.log('  Mode: Jane-only')
-  if (dutchieOnly) console.log('  Mode: Dutchie-only')
-  console.log(`  Targeting ${LAS_VEGAS_DUTCHIE_SLUGS.length + THRIVE_DISPENSARIES.length + CURALEAF_DISPENSARIES.length} dispensaries\n`)
+  if (janeOnly)     console.log('  Mode: Jane-only')
+  if (dutchieOnly)  console.log('  Mode: Dutchie-only')
+  if (curaleafOnly) console.log('  Mode: Curaleaf-only')
+  if (carrotOnly)   console.log('  Mode: Carrot-only')
+  console.log(`  Targeting ${LAS_VEGAS_DUTCHIE_SLUGS.length + THRIVE_DISPENSARIES.length + CURALEAF_DISPENSARIES.length + CARROT_DISPENSARIES.length} dispensaries\n`)
 
   const browser = await chromium.launch({
     headless: true,
@@ -1194,7 +1485,7 @@ async function main() {
   let totalFailed = 0
 
   for (const dispensary of LAS_VEGAS_DUTCHIE_SLUGS) {
-    if (janeOnly || curaleafOnly) continue
+    if (janeOnly || curaleafOnly || carrotOnly) continue
     if (TEST_MODE && !TEST_SLUGS.includes(dispensary.slug)) {
       console.log(`  ⏭ TEST_MODE: skipping ${dispensary.slug}`)
       continue
@@ -1244,7 +1535,7 @@ async function main() {
   }
 
   // ── Thrive (iHeartJane) ───────────────────────────────────────────────────
-  if (!dutchieOnly && !curaleafOnly) {
+  if (!dutchieOnly && !curaleafOnly && !carrotOnly) {
   console.log('\n\n══ iHeartJane ══')
   for (const dispensary of THRIVE_DISPENSARIES) {
     if (TEST_MODE && !TEST_SLUGS.includes(dispensary.slug)) {
@@ -1277,7 +1568,7 @@ async function main() {
   } // end !dutchieOnly
 
   // ── Curaleaf (Sweed POS) ──────────────────────────────────────────────────
-  if (!janeOnly && !dutchieOnly) {
+  if (!janeOnly && !dutchieOnly && !carrotOnly) {
   console.log('\n\n══ Curaleaf (Sweed POS) ══')
   if (curaleafOnly) console.log('  Mode: Curaleaf-only')
 
@@ -1318,7 +1609,42 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 2000))
   }
   await curaleafContext.close()
-  } // end !janeOnly && !dutchieOnly
+  } // end !janeOnly && !dutchieOnly && !carrotOnly
+
+  // ── Carrot ────────────────────────────────────────────────────────────────
+  if (!janeOnly && !dutchieOnly && !curaleafOnly) {
+  console.log('\n\n══ Carrot ══')
+
+  for (const dispensary of CARROT_DISPENSARIES) {
+    if (TEST_MODE && !TEST_SLUGS.includes(dispensary.slug)) {
+      console.log(`  ⏭ TEST_MODE: skipping ${dispensary.slug}`)
+      continue
+    }
+    console.log(`\n🏪 Scraping: ${dispensary.slug}`)
+
+    const products = await scrapeCarrot(dispensary)
+
+    if (products.length === 0) {
+      console.log(`  ⚠ No products found for ${dispensary.slug}`)
+      continue
+    }
+    console.log(`  ✓ Found ${products.length} products — "${dispensary.name}"`)
+
+    const dispensaryId = await upsertDispensaryCarrot(dispensary)
+    if (!dispensaryId) continue
+
+    const results = await upsertProducts(dispensaryId, products, 'carrot')
+    console.log(`  ✓ Saved: ${results.inserted} new, ${results.updated} updated (${results.failed} failed)`)
+
+    const deleted = await deleteStaleProducts(dispensaryId, products)
+    if (deleted > 0) console.log(`  🗑 Removed ${deleted} stale/out-of-stock products`)
+
+    totalProducts += results.inserted + results.updated
+    totalFailed += results.failed
+
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  }
+  } // end Carrot
 
   await browser.close()
 

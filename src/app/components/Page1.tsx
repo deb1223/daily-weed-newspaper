@@ -3,6 +3,8 @@ import { PageData } from "@/lib/data";
 import { displayProductSize, calcMgPerDollar } from "@/lib/format";
 import EmailSignupForm from "./EmailSignupForm";
 import AuthLabel from "./AuthLabel";
+import HeroBlock from "./HeroBlock";
+import Top10Table from "./Top10Table";
 
 const ZIGGY_LINERS = [
   "these idiots finally remembered how to run a sale",
@@ -28,7 +30,7 @@ const ZIGGY_LINERS = [
 ];
 
 export default function Page1({ data }: { data: PageData }) {
-  const { stats, categoryWinners, topDeals, dailyBrief } = data;
+  const { stats, topDeals, dailyWinners, dailyBrief } = data;
   const brief = dailyBrief?.brief_json ?? null;
 
   const today = new Date().toLocaleDateString("en-US", {
@@ -75,6 +77,9 @@ export default function Page1({ data }: { data: PageData }) {
       <div className="auth-label-mobile-wrapper">
         <AuthLabel />
       </div>
+
+      {/* HERO — free trial capture */}
+      <HeroBlock />
 
       {/* TICKER */}
       <div className="ticker-bar">
@@ -124,65 +129,17 @@ export default function Page1({ data }: { data: PageData }) {
       <div className="newspaper-grid">
         {/* LEFT COLUMN */}
         <div className="column">
-          <span className="kicker">Category Winners</span>
+          <span className="kicker">Ziggy&apos;s Top 10 Winners</span>
           <h2
             className="font-headline"
-            style={{ fontSize: "20px", fontWeight: 900, marginBottom: "12px" }}
+            style={{ fontSize: "20px", fontWeight: 900, marginBottom: "4px" }}
           >
-            Best Bang Per Category
+            Ziggy&apos;s Top 10
           </h2>
-          <table className="category-table">
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Product</th>
-                <th>Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categoryWinners.map((winner) => (
-                <tr key={winner.label}>
-                  <td className="font-mono" style={{ fontSize: "11px", color: "var(--muted)" }}>
-                    {winner.label}
-                  </td>
-                  <td style={{ maxWidth: "130px" }}>
-                    {winner.name ? (
-                      <span style={{ fontSize: "12px" }}>{winner.name}</span>
-                    ) : (
-                      <span style={{ color: "var(--muted)", fontStyle: "italic", fontSize: "11px" }}>
-                        None found
-                      </span>
-                    )}
-                    {winner.dispensaryName && (
-                      <span
-                        style={{
-                          display: "block",
-                          fontFamily: "Space Mono, monospace",
-                          fontSize: "9px",
-                          color: "var(--muted)",
-                          marginTop: "2px",
-                        }}
-                      >
-                        {winner.dispensaryName}
-                      </span>
-                    )}
-                  </td>
-                  <td className="price">
-                    {winner.price !== null ? (
-                      <>
-                        ${Number(winner.price).toFixed(2)}
-                        {winner.pricePerGram !== null && (
-                          <span style={{ display: "block", fontFamily: "Space Mono, monospace", fontSize: "9px", color: "var(--muted)", fontWeight: 400 }}>
-                            ${winner.pricePerGram.toFixed(2)}/g
-                          </span>
-                        )}
-                      </>
-                    ) : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <p style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginBottom: "12px", lineHeight: 1.6 }}>
+            The best value in Vegas right now, by category. Shake gets its own trophy so it stops stealing flower&apos;s.
+          </p>
+          <Top10Table winners={dailyWinners} />
 
           {/* Ziggy's Savage Corner */}
           <div className="gorks-corner" style={{ marginTop: "24px" }}>

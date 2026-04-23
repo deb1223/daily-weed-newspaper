@@ -3,6 +3,14 @@
     {
       "path": "/api/generate-brief",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/compute-winners",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/auth/expire-trials",
+      "schedule": "0 * * * *"
     }
   ]
 }

@@ -66,9 +66,27 @@ export interface DailyBrief {
   status: string;
 }
 
+export interface DailyWinnerProduct {
+  id: string;
+  name: string;
+  brand: string | null;
+  price: number;
+  thc_percentage: number | null;
+  weight_grams: number | null;
+  product_url: string | null;
+  dispensary_name: string | null;
+}
+
+export interface DailyWinner {
+  category_key: string;
+  metric_display: string | null;
+  product: DailyWinnerProduct | null;
+}
+
 export interface PageData {
   stats: SiteStats;
   categoryWinners: CategoryWinner[];
+  dailyWinners: DailyWinner[];
   topDeals: DealProduct[];
   avgByCategory: AvgByCategory[];
   stripDeals: DealProduct[];
@@ -336,6 +354,80 @@ async function getStripDeals(): Promise<DealProduct[]> {
     .slice(0, 6);
 }
 
+// ─── DAILY WINNERS ───────────────────────────────────────────
+
+// The 10 category keys in display order — always returned as 10 rows,
+// even when daily_winners has no row for a category (empty state).
+const WINNER_CATEGORY_KEYS = [
+  "best_value_flower",
+  "cheapest_eighth",
+  "shake",
+  "prerolls",
+  "vape_cart",
+  "vape_disposable",
+  "concentrates",
+  "rso",
+  "edibles",
+  "tinctures",
+] as const;
+
+async function getDailyWinners(): Promise<DailyWinner[]> {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data } = await supabase
+    .from("daily_winners")
+    .select(
+      "category_key, metric_display, product_id, products!left(id, name, brand, price, thc_percentage, weight_grams, product_url, dispensaries!left(name))"
+    )
+    .eq("date", today);
+
+  // Index fetched rows by category key
+  const byKey = new Map<string, DailyWinner>();
+  for (const row of data ?? []) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = row as unknown as {
+      category_key: string;
+      metric_display: string | null;
+      product_id: string | null;
+      products: {
+        id: string;
+        name: string;
+        brand: string | null;
+        price: number;
+        thc_percentage: number | null;
+        weight_grams: number | null;
+        product_url: string | null;
+        dispensaries: { name: string } | null;
+      } | null;
+    };
+
+    const prod = r.products;
+    byKey.set(r.category_key, {
+      category_key: r.category_key,
+      metric_display: r.metric_display,
+      product: prod
+        ? {
+            id: prod.id,
+            name: prod.name,
+            brand: prod.brand,
+            price: Number(prod.price),
+            thc_percentage: prod.thc_percentage,
+            weight_grams: prod.weight_grams,
+            product_url: prod.product_url,
+            dispensary_name: (prod.dispensaries as { name: string } | null)?.name ?? null,
+          }
+        : null,
+    });
+  }
+
+  // Return all 10 categories in fixed order, filling empty state for missing ones
+  return WINNER_CATEGORY_KEYS.map((key) => byKey.get(key) ?? {
+    category_key: key,
+    metric_display: null,
+    product: null,
+  });
+}
+
 // ─── DAILY BRIEF ─────────────────────────────────────────────
 async function getDailyBrief(): Promise<DailyBrief | null> {
   const today = new Date().toISOString().slice(0, 10);
@@ -350,15 +442,16 @@ async function getDailyBrief(): Promise<DailyBrief | null> {
 
 // ─── MAIN FETCH ───────────────────────────────────────────────
 export async function getAllPageData(): Promise<PageData> {
-  const [stats, categoryWinners, topDeals, avgByCategory, stripDeals, dailyBrief] =
+  const [stats, categoryWinners, dailyWinners, topDeals, avgByCategory, stripDeals, dailyBrief] =
     await Promise.all([
       getStats(),
       getCategoryWinners(),
+      getDailyWinners(),
       getTopDeals(),
       getAvgByCategory(),
       getStripDeals(),
       getDailyBrief(),
     ]);
 
-  return { stats, categoryWinners, topDeals, avgByCategory, stripDeals, dailyBrief };
+  return { stats, categoryWinners, dailyWinners, topDeals, avgByCategory, stripDeals, dailyBrief };
 }

@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
           {
             email,
             tier: "pro",
+            subscription_status: "active",
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
             confirmed: true,
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
     if (customerId) {
       const { error } = await supabase
         .from("subscribers")
-        .update({ tier: "free", stripe_subscription_id: null })
+        .update({ tier: "free", subscription_status: "canceled", stripe_subscription_id: null })
         .eq("stripe_customer_id", customerId);
 
       if (error) {
@@ -118,10 +119,12 @@ export async function POST(req: NextRequest) {
       typeof sub.customer === "string" ? sub.customer : null;
 
     if (customerId) {
-      const tier = sub.status === "active" ? "pro" : "free";
+      const isActive = sub.status === "active";
+      const tier = isActive ? "pro" : "free";
+      const subscription_status = isActive ? "active" : "canceled";
       const { error } = await supabase
         .from("subscribers")
-        .update({ tier, stripe_subscription_id: sub.id })
+        .update({ tier, subscription_status, stripe_subscription_id: sub.id })
         .eq("stripe_customer_id", customerId);
 
       if (error) {
