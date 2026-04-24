@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Daily Weed Newspaper — Front Page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Space+Mono:wght@400;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --newsprint:#f4f0e4;
+    --ink:#1a1008;
+    --accent:#2d6a4f;      /* forest green, per spec */
+    --bud:#34a529;         /* existing codebase accent, used sparingly */
+    --aged:#f0e9d9;
+    --muted:#6b5e45;
+    --rule:#1a1008;
+    --ticker-red:#d62828;
+    --deep-forest:#13240f;
+  }
+
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+  html,body{
+    background:var(--newsprint);
+    color:var(--ink);
+    font-family:'Source Serif 4',Georgia,serif;
+    font-size:16px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* grain */
+  body::after{
+    content:'';
+    position:fixed;inset:0;
+    pointer-events:none;z-index:9999;
+    opacity:.28;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    mix-blend-mode:multiply;
+  }
+
+  .sheet{
+    max-width:1400px;
+    margin:0 auto;
+    background:var(--newsprint);
+  }
+
+  /* ─── FOLIO STRIP (very top, tiny) ────────────────────────── */
+  .folio{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:center;
+    gap:16px;
+    padding:6px 28px;
+    border-bottom:1px solid var(--rule);
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    letter-spacing:.08em;
+    color:var(--muted);
+    text-transform:uppercase;
+  }
+  .folio .left{justify-self:start;display:flex;gap:14px;align-items:center}
+  .folio .center{justify-self:center;font-style:italic;text-transform:none;letter-spacing:0;color:var(--ink);font-family:'Source Serif 4',serif;font-size:11px}
+  .folio .right{justify-self:end;display:flex;gap:14px;align-items:center}
+  .folio .pill{
+    display:inline-block;
+    padding:1px 6px;
+    border:1px solid var(--ink);
+    color:var(--ink);
+    font-weight:700;
+  }
+  .folio .sep{opacity:.5}
+
+  /* ─── MASTHEAD ────────────────────────────────────────────── */
+  .masthead{
+    position:relative;
+    padding:22px 28px 0;
+    border-bottom:none;
+  }
+
+  .masthead-row{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:center;
+    gap:28px;
+  }
+
+  /* left/right ornament blocks flanking title */
+  .orn{
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    line-height:1.7;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  .orn-left{text-align:right;padding-right:4px}
+  .orn-right{text-align:left;padding-left:4px}
+  .orn .head{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-style:italic;
+    font-size:13px;
+    color:var(--ink);
+    letter-spacing:0;
+    text-transform:none;
+    margin-bottom:6px;
+    border-bottom:1px solid var(--ink);
+    padding-bottom:4px;
+    display:inline-block;
+  }
+  .orn dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:10px}
+  .orn-left dl{grid-template-columns:1fr auto;text-align:right}
+  .orn dt{color:var(--muted)}
+  .orn dd{color:var(--ink);font-weight:700}
+
+  .title-wrap{
+    text-align:center;
+    padding:0 8px;
+  }
+
+  .latin-motto{
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-size:12px;
+    color:var(--muted);
+    letter-spacing:.04em;
+    margin-bottom:4px;
+  }
+  .latin-motto::before,
+  .latin-motto::after{
+    content:'·';
+    margin:0 10px;
+    color:var(--muted);
+  }
+
+  .masthead-title{
+    font-family:'UnifrakturMaguntia',cursive;
+    font-size:clamp(54px,8.4vw,112px);
+    line-height:.92;
+    letter-spacing:-1px;
+    color:var(--ink);
+    padding:2px 0 0;
+    white-space:nowrap;
+  }
+
+  .masthead-subhead{
+    margin-top:10px;
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--ink);
+  }
+  .masthead-subhead .tilde{color:var(--accent);margin:0 8px;font-weight:700}
+
+  /* The dateline rule — triple rule signature of a real broadsheet */
+  .dateline{
+    margin-top:18px;
+    border-top:1px solid var(--ink);
+    border-bottom:1px solid var(--ink);
+    padding:8px 0;
+    position:relative;
+  }
+  .dateline::before{
+    content:'';
+    position:absolute;
+    left:0;right:0;
+    top:-5px;
+    border-top:3px solid var(--ink);
+  }
+  .dateline-inner{
+    display:grid;
+    grid-template-columns:1fr 2fr 1fr;
+    align-items:center;
+    font-family:'Space Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink);
+  }
+  .dateline .lo{justify-self:start}
+  .dateline .md{justify-self:center;letter-spacing:.18em}
+  .dateline .hi{justify-self:end}
+  .dateline .accent{color:var(--accent);font-weight:700}
+  .dateline .divider{display:inline-block;width:1px;height:10px;background:var(--muted);margin:0 10px;vertical-align:middle}
+
+  /* section rail beneath dateline */
+  .section-rail{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:0;
+    padding:6px 28px 10px;
+    border-bottom:3px double var(--ink);
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--muted);
+    flex-wrap:wrap;
+  }
+  .section-rail a{
+    color:var(--ink);
+    text-decoration:none;
+    padding:0 14px;
+    border-right:1px solid var(--aged);
+    position:relative;
+  }
+  .section-rail a:last-child{border-right:none}
+  .section-rail a.current{
+    color:var(--accent);
+    font-weight:700;
+  }
+  .section-rail a.current::after{
+    content:'●';
+    color:var(--accent);
+    font-size:8px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
+
+  /* ─── TICKER ──────────────────────────────────────────────── */
+  .ticker-shell{
+    border-top:1px solid var(--ink);
+    border-bottom:1px solid var(--ink);
+    background:var(--ticker-red);
+    color:#fff;
+    display:grid;
+    grid-template-columns:auto 1fr;
+    align-items:stretch;
+  }
+  .ticker-flag{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:0 14px;
+    background:#a41d1d;
+    border-right:1px solid #fff3;
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+  }
+  .ticker-flag .dot{
+    width:7px;height:7px;background:#fff;border-radius:50%;
+    animation:pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:1}
+    50%{opacity:.35}
+  }
+  .ticker-bar{
+    overflow:hidden;
+    white-space:nowrap;
+    padding:8px 0;
+    font-family:'Space Mono',monospace;
+    font-size:12px;
+    font-weight:700;
+  }
+  .ticker-inner{
+    display:inline-block;
+    padding-left:100%;
+    animation:ticker-scroll 55s linear infinite;
+  }
+  .ticker-inner:hover{animation-play-state:paused}
+  .ticker-inner span.tk-sep{
+    display:inline-block;
+    margin:0 18px;
+    color:#ffffffaa;
+  }
+  .ticker-inner span.tk-tag{
+    color:#ffd28a;
+    font-weight:700;
+    margin-right:6px;
+    letter-spacing:.1em;
+  }
+  @keyframes ticker-scroll{
+    0%{transform:translateX(0)}
+    100%{transform:translateX(-100%)}
+  }
+
+  /* ─── STATS STRIP (market data band) ──────────────────────── */
+  .stats-strip{
+    position:relative;
+    border-bottom:3px double var(--ink);
+  }
+  .stats-strip::before{
+    content:'MARKET VITALS';
+    position:absolute;
+    top:-8px;
+    left:50%;
+    transform:translateX(-50%);
+    background:var(--newsprint);
+    padding:0 14px;
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:.32em;
+    color:var(--muted);
+  }
+
+  .stats-row{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    padding-top:10px;
+  }
+  .stat-box{
+    position:relative;
+    padding:22px 18px 18px;
+    text-align:center;
+    border-right:1px solid var(--ink);
+  }
+  .stat-box:last-child{border-right:none}
+
+  .stat-kicker{
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:10px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+  }
+  .stat-kicker .tag{
+    color:var(--accent);
+    font-weight:700;
+  }
+
+  .stat-number{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-size:clamp(40px,4.6vw,60px);
+    line-height:1;
+    color:var(--ink);
+    letter-spacing:-0.02em;
+    font-variant-numeric:tabular-nums;
+    display:inline-block;
+    position:relative;
+  }
+  .stat-number .pre{
+    font-size:.5em;
+    vertical-align:top;
+    margin-right:2px;
+    color:var(--muted);
+    font-weight:400;
+    font-family:'Space Mono',monospace;
+    position:relative;
+    top:.25em;
+  }
+  .stat-number .ast{
+    font-family:'Space Mono',monospace;
+    font-size:.32em;
+    vertical-align:top;
+    color:var(--accent);
+    margin-left:3px;
+    font-weight:700;
+    position:relative;
+    top:.4em;
+  }
+
+  .stat-hair{
+    width:36px;
+    height:1px;
+    background:var(--ink);
+    margin:10px auto 8px;
+  }
+
+  .stat-sub{
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--muted);
+    line-height:1.4;
+  }
+  .stat-sub .delta{
+    display:block;
+    margin-top:3px;
+    font-size:9px;
+    color:var(--accent);
+    font-weight:700;
+    letter-spacing:.1em;
+  }
+  .stat-sub .delta.down{color:var(--ticker-red)}
+
+  /* footnote strip under stats */
+  .stats-footnote{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:8px 20px;
+    border-top:1px solid var(--aged);
+    font-family:'Source Serif 4',serif;
+    font-size:11px;
+    font-style:italic;
+    color:var(--muted);
+  }
+  .stats-footnote .ast{
+    color:var(--accent);
+    font-family:'Space Mono',monospace;
+    font-style:normal;
+    font-weight:700;
+    margin-right:4px;
+  }
+  .stats-footnote .meta{
+    font-family:'Space Mono',monospace;
+    font-style:normal;
+    font-size:9.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+
+  /* ─── RESPONSIVE ──────────────────────────────────────────── */
+  @media (max-width: 1000px){
+    .masthead-row{grid-template-columns:1fr;gap:8px}
+    .orn-left,.orn-right{text-align:center;padding:0}
+    .orn-left dl,.orn-right dl{justify-content:center}
+    .masthead-title{font-size:clamp(44px,12vw,80px)}
+    .dateline-inner{grid-template-columns:1fr;text-align:center;gap:4px}
+    .dateline .lo,.dateline .md,.dateline .hi{justify-self:center}
+    .stats-row{grid-template-columns:repeat(3,1fr)}
+    .stat-box:nth-child(3){border-right:none}
+    .stat-box:nth-child(n+4){border-top:1px solid var(--ink)}
+    .stat-box:nth-child(4){border-right:1px solid var(--ink)}
+  }
+  @media (max-width: 640px){
+    .folio .center{display:none}
+    .stats-row{grid-template-columns:1fr 1fr}
+    .stat-box{border-right:1px solid var(--ink) !important}
+    .stat-box:nth-child(2n){border-right:none !important}
+    .stat-box:nth-child(n+3){border-top:1px solid var(--ink)}
+    .section-rail a{padding:2px 8px}
+    .ticker-flag{display:none}
+    .stats-footnote{flex-direction:column;gap:4px;text-align:center}
+  }
+
+</style>
+</head>
+<body>
+
+<div class="sheet">
+
+  <!-- FOLIO STRIP -->
+  <div class="folio">
+    <div class="left">
+      <span class="pill">VOL. I</span>
+      <span>No. 024</span>
+      <span class="sep">│</span>
+      <span>36°10′N · 115°08′W</span>
+    </div>
+    <div class="center">“All the Deals That’s Fit to Print” — Est. April 2026</div>
+    <div class="right">
+      <span>Las Vegas, Nev.</span>
+      <span class="sep">│</span>
+      <span>Partly Cloudy · 72°F</span>
+      <span class="sep">│</span>
+      <span>Sign In</span>
+    </div>
+  </div>
+
+  <!-- MASTHEAD -->
+  <header class="masthead">
+    <div class="masthead-row">
+
+      <!-- left ornament: Today's Index -->
+      <aside class="orn orn-left" aria-label="Today in this edition">
+        <div class="head">Today’s Index</div>
+        <dl>
+          <dt>Front Page</dt><dd>01</dd>
+          <dt>Inside Scoop</dt><dd>02</dd>
+          <dt>The Closer</dt><dd>03</dd>
+          <dt>Market Data</dt><dd>04</dd>
+          <dt>Ziggy’s Column</dt><dd>05</dd>
+        </dl>
+      </aside>
+
+      <!-- TITLE -->
+      <div class="title-wrap">
+        <div class="latin-motto">Veritas · Cannabis · Economia</div>
+        <h1 class="masthead-title">Daily Weed Newspaper</h1>
+        <p class="masthead-subhead">
+          The Only Cannabis Publication<span class="tilde">§</span>That Actually Gives a Damn About Your Wallet
+        </p>
+      </div>
+
+      <!-- right ornament: Weather Almanac — factual, not vibes -->
+      <aside class="orn orn-right" aria-label="Today's almanac">
+        <div class="head">Today’s Almanac</div>
+        <dl>
+          <dt>Sunrise</dt><dd>05:58</dd>
+          <dt>Sunset</dt><dd>19:14</dd>
+          <dt>High / Low</dt><dd>78° / 54°</dd>
+          <dt>Humidity</dt><dd>18%</dd>
+          <dt>Moon</dt><dd>Waxing Gibbous</dd>
+        </dl>
+      </aside>
+
+    </div>
+
+    <!-- DATELINE -->
+    <div class="dateline">
+      <div class="dateline-inner">
+        <span class="lo">
+          Friday, April 24, 2026
+          <span class="divider"></span>
+          Edition <span class="accent">№ 024</span>
+        </span>
+        <span class="md">Las Vegas · Nevada · United States of America</span>
+        <span class="hi">
+          16 Dispensaries Audited
+          <span class="divider"></span>
+          <span class="accent">3,617</span> Menus Priced
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- SECTION RAIL -->
+  <nav class="section-rail" aria-label="Sections">
+    <a href="#" class="current">Front Page</a>
+    <a href="#">Price Dashboard</a>
+    <a href="#">Top 10 Winners</a>
+    <a href="#">Big Mike’s Tea</a>
+    <a href="#">Tourist Terry</a>
+    <a href="#">Ziggy’s Column</a>
+  </nav>
+
+  <!-- TICKER -->
+  <div class="ticker-shell" role="marquee" aria-label="Ziggy ticker">
+    <div class="ticker-flag">
+      <span class="dot" aria-hidden="true"></span>
+      <span>Ziggy Live</span>
+    </div>
+    <div class="ticker-bar">
+      <div class="ticker-inner">
+        <span class="tk-tag">★ PICK OF THE DAY</span>Jeeter Baby Jeeter Infused 5-pack — 42% OFF at Planet 13, now $24.99 — “your plug is irrelevant now”
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">★ ZIGGY REPORT</span>Strip dispensaries still charging 2022 prices
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">ON SALE</span>1,248 products discounted right now
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">LOW WATERMARK</span>Cheapest eighth spotted at $14.99
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">AVG PRICE</span>$38.74 across all menus
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">MARKET RATING</span>7.8 / 10 — prices softening
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">ZIGGY SAYS</span>“the math mathed and the deal dealt”
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">★ PICK OF THE DAY</span>Jeeter Baby Jeeter Infused 5-pack — 42% OFF at Planet 13, now $24.99
+        <span class="tk-sep">◆</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS STRIP -->
+  <section class="stats-strip" aria-label="Market vitals">
+    <div class="stats-row">
+
+      <div class="stat-box">
+        <div class="stat-kicker"><span class="tag">01</span> Total Products</div>
+        <div class="stat-number">3,617</div>
+        <div class="stat-hair"></div>
+        <div class="stat-sub">
+          Menus Priced
+          <span class="delta">▲ 142 vs. last edition</span>
+        </div>
+      </div>
+
+      <div class="stat-box">
+        <div class="stat-kicker"><span class="tag">02</span> Dispensaries</div>
+        <div class="stat-number">16</div>
+        <div class="stat-hair"></div>
+        <div class="stat-sub">
+          Las Vegas Metro
+          <span class="delta">All Legal · All Audited</span>
+        </div>
+      </div>
+
+      <div class="stat-box">
+        <div class="stat-kicker"><span class="tag">03</span> On Sale Now</div>
+        <div class="stat-number">1,248</div>
+        <div class="stat-hair"></div>
+        <div class="stat-sub">
+          34.5% of Inventory
+          <span class="delta">▲ 3.1 pts week-over-week</span>
+        </div>
+      </div>
+
+      <div class="stat-box">
+        <div class="stat-kicker"><span class="tag">04</span> Lowest Price</div>
+        <div class="stat-number"><span class="pre">$</span>4.99<span class="ast">*</span></div>
+        <div class="stat-hair"></div>
+        <div class="stat-sub">
+          Single Pre-Roll, 0.5g
+          <span class="delta">Thrive · North Vegas</span>
+        </div>
+      </div>
+
+      <div class="stat-box">
+        <div class="stat-kicker"><span class="tag">05</span> Avg Price</div>
+        <div class="stat-number"><span class="pre">$</span>38.74<span class="ast">*</span></div>
+        <div class="stat-hair"></div>
+        <div class="stat-sub">
+          Across All Menus
+          <span class="delta down">▼ $0.42 vs. last edition</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="stats-footnote">
+      <span><span class="ast">*</span>Figures exclude accessories, apparel &amp; novelty items. Flower, pre-rolls, concentrates, edibles, vapes &amp; tinctures only.</span>
+      <span class="meta">Sourced from public menus · Updated 06:00 PST · Refreshed every 4 hrs</span>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

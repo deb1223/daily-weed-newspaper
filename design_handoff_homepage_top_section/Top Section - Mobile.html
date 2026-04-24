@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=390,initial-scale=1" />
+<title>Daily Weed Newspaper — Mobile Front Page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Space+Mono:wght@400;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --newsprint:#f4f0e4;
+    --ink:#1a1008;
+    --accent:#2d6a4f;
+    --aged:#f0e9d9;
+    --muted:#6b5e45;
+    --rule:#1a1008;
+    --ticker-red:#d62828;
+  }
+
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+  html,body{
+    background:var(--newsprint);
+    color:var(--ink);
+    font-family:'Source Serif 4',Georgia,serif;
+    font-size:16px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  body::after{
+    content:'';
+    position:fixed;inset:0;
+    pointer-events:none;z-index:9999;
+    opacity:.28;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    mix-blend-mode:multiply;
+  }
+
+  .sheet{
+    width:390px;
+    margin:0 auto;
+    background:var(--newsprint);
+    min-height:100vh;
+    position:relative;
+    padding-bottom:56px; /* leave room for sticky bottom nav */
+  }
+
+  /* ─── TOP BAR (replaces folio + hamburger trigger) ──────── */
+  .mbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:8px 14px;
+    border-bottom:1px solid var(--ink);
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    background:var(--newsprint);
+  }
+  .mbar .hamb{
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    width:22px;height:14px;
+    border:none;background:none;
+    padding:0;cursor:pointer;
+  }
+  .mbar .hamb span{
+    display:block;width:100%;height:2px;background:var(--ink);
+  }
+  .mbar .pill{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:2px 6px;
+    border:1px solid var(--ink);
+    color:var(--ink);
+    font-weight:700;
+  }
+  .mbar .edition{
+    display:flex;align-items:center;gap:8px;
+  }
+  .mbar .edition .sep{opacity:.5}
+  .mbar .auth{color:var(--accent);font-weight:700}
+
+  /* Folio secondary row (Vol/coords/motto) — smaller */
+  .mfolio{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    padding:4px 14px;
+    border-bottom:1px solid var(--ink);
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .mfolio .motto{
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    text-transform:none;
+    letter-spacing:0;
+    color:var(--ink);
+    font-size:10px;
+  }
+  .mfolio .sep{opacity:.5}
+
+  /* ─── MASTHEAD ─────────────────────────────────────────── */
+  .masthead{
+    padding:16px 14px 0;
+    text-align:center;
+  }
+  .latin-motto{
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-size:10.5px;
+    color:var(--muted);
+    letter-spacing:.04em;
+    margin-bottom:4px;
+  }
+  .latin-motto::before,
+  .latin-motto::after{
+    content:'·';
+    margin:0 8px;
+    color:var(--muted);
+  }
+  .masthead-title{
+    font-family:'UnifrakturMaguntia',cursive;
+    font-size:54px;
+    line-height:.9;
+    letter-spacing:-0.5px;
+    color:var(--ink);
+    padding:2px 0 0;
+    white-space:nowrap;
+  }
+  .masthead-subhead{
+    margin-top:8px;
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--ink);
+    line-height:1.5;
+  }
+  .masthead-subhead .tilde{color:var(--accent);margin:0 6px;font-weight:700}
+
+  /* Almanac slim strip — below masthead, above dateline */
+  .malmanac{
+    margin:14px 14px 0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:6px 10px;
+    border-top:1px solid var(--aged);
+    border-bottom:1px solid var(--aged);
+    font-family:'Space Mono',monospace;
+    font-size:9.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .malmanac .label{
+    font-family:'Playfair Display',serif;
+    font-style:italic;
+    font-weight:700;
+    font-size:10px;
+    text-transform:none;
+    letter-spacing:0;
+    color:var(--ink);
+  }
+  .malmanac .grp{display:flex;align-items:center;gap:10px}
+  .malmanac .grp .sep{opacity:.4}
+  .malmanac .val{color:var(--ink);font-weight:700}
+
+  /* Dateline — triple rule, stacked */
+  .dateline{
+    margin:10px 0 0;
+    padding:7px 14px;
+    border-top:1px solid var(--ink);
+    border-bottom:1px solid var(--ink);
+    position:relative;
+    text-align:center;
+    font-family:'Space Mono',monospace;
+    font-size:9.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink);
+    line-height:1.7;
+  }
+  .dateline::before{
+    content:'';
+    position:absolute;
+    left:0;right:0;top:-5px;
+    border-top:3px solid var(--ink);
+  }
+  .dateline .row{display:block}
+  .dateline .row + .row{margin-top:2px}
+  .dateline .accent{color:var(--accent);font-weight:700}
+  .dateline .divider{
+    display:inline-block;width:1px;height:9px;
+    background:var(--muted);margin:0 8px;vertical-align:middle;
+  }
+
+  /* ─── TICKER (full width) ──────────────────────────────── */
+  .ticker-shell{
+    border-top:1px solid var(--ink);
+    border-bottom:1px solid var(--ink);
+    background:var(--ticker-red);
+    color:#fff;
+    display:grid;
+    grid-template-columns:auto 1fr;
+    align-items:stretch;
+  }
+  .ticker-flag{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:0 10px;
+    background:#a41d1d;
+    border-right:1px solid #fff3;
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+  }
+  .ticker-flag .dot{
+    width:6px;height:6px;background:#fff;border-radius:50%;
+    animation:pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .ticker-bar{
+    overflow:hidden;
+    white-space:nowrap;
+    padding:7px 0;
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    font-weight:700;
+  }
+  .ticker-inner{
+    display:inline-block;
+    padding-left:100%;
+    animation:ticker-scroll 50s linear infinite;
+  }
+  .ticker-inner:hover{animation-play-state:paused}
+  .tk-tag{color:#ffd28a;font-weight:700;margin-right:5px;letter-spacing:.08em}
+  .tk-sep{display:inline-block;margin:0 14px;color:#ffffffaa}
+  @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
+
+  /* ─── STATS — 2x3 grid (5 cells + 1 spanning footer slot) ── */
+  .stats-strip{
+    position:relative;
+    border-bottom:3px double var(--ink);
+  }
+  .stats-strip::before{
+    content:'MARKET VITALS';
+    position:absolute;
+    top:-8px;
+    left:50%;
+    transform:translateX(-50%);
+    background:var(--newsprint);
+    padding:0 12px;
+    font-family:'Space Mono',monospace;
+    font-size:8.5px;
+    font-weight:700;
+    letter-spacing:.3em;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+  .stats-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    padding-top:12px;
+  }
+  .stat-box{
+    position:relative;
+    padding:14px 10px 12px;
+    text-align:center;
+    border-right:1px solid var(--ink);
+    border-bottom:1px solid var(--ink);
+  }
+  .stat-box:nth-child(2n){border-right:none}
+  .stat-box:nth-last-child(-n+2){border-bottom:none} /* last row no bottom */
+  /* But we have 5 cells → cell 5 spans full width */
+  .stat-box.span2{
+    grid-column:1 / -1;
+    border-right:none;
+    border-bottom:none;
+  }
+
+  .stat-kicker{
+    font-family:'Space Mono',monospace;
+    font-size:8.5px;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:8px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+  }
+  .stat-kicker .tag{color:var(--accent);font-weight:700}
+
+  .stat-number{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-size:36px;
+    line-height:1;
+    color:var(--ink);
+    letter-spacing:-0.02em;
+    font-variant-numeric:tabular-nums;
+    display:inline-block;
+  }
+  .stat-box.span2 .stat-number{font-size:44px}
+  .stat-number .pre{
+    font-size:.5em;vertical-align:top;margin-right:2px;
+    color:var(--muted);font-weight:400;
+    font-family:'Space Mono',monospace;
+    position:relative;top:.25em;
+  }
+  .stat-number .ast{
+    font-family:'Space Mono',monospace;
+    font-size:.32em;vertical-align:top;
+    color:var(--accent);margin-left:3px;font-weight:700;
+    position:relative;top:.4em;
+  }
+
+  .stat-hair{
+    width:28px;height:1px;
+    background:var(--ink);
+    margin:8px auto 6px;
+  }
+
+  .stat-sub{
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--muted);
+    line-height:1.4;
+  }
+  .stat-sub .delta{
+    display:block;margin-top:2px;font-size:8.5px;
+    color:var(--accent);font-weight:700;letter-spacing:.08em;
+  }
+  .stat-sub .delta.down{color:var(--ticker-red)}
+
+  .stats-footnote{
+    padding:8px 14px;
+    border-top:1px solid var(--aged);
+    font-family:'Source Serif 4',serif;
+    font-size:10.5px;
+    font-style:italic;
+    color:var(--muted);
+    text-align:center;
+    line-height:1.5;
+  }
+  .stats-footnote .ast{
+    color:var(--accent);
+    font-family:'Space Mono',monospace;
+    font-style:normal;
+    font-weight:700;
+    margin-right:3px;
+  }
+  .stats-footnote .meta{
+    display:block;
+    margin-top:4px;
+    font-family:'Space Mono',monospace;
+    font-style:normal;
+    font-size:8.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+  }
+
+  /* ─── BOTTOM NAV (replaces section rail) ─────────────── */
+  .mbottom{
+    position:fixed;
+    bottom:0;left:50%;
+    transform:translateX(-50%);
+    width:390px;
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    background:var(--newsprint);
+    border-top:3px double var(--ink);
+    z-index:500;
+  }
+  .mbottom a{
+    text-align:center;
+    padding:9px 2px 10px;
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--ink);
+    text-decoration:none;
+    border-right:1px solid var(--aged);
+    line-height:1.2;
+  }
+  .mbottom a:last-child{border-right:none}
+  .mbottom a.current{
+    color:var(--accent);font-weight:700;
+    background:var(--aged);
+  }
+  .mbottom a .glyph{
+    display:block;
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-size:13px;
+    margin-bottom:2px;
+    color:inherit;
+  }
+  .mbottom a.current .glyph{color:var(--accent)}
+
+  /* ─── HAMBURGER SHEET ──────────────────────────────────── */
+  .sheet-backdrop{
+    position:fixed;inset:0;
+    background:rgba(26,16,8,.55);
+    z-index:900;
+    opacity:0;pointer-events:none;
+    transition:opacity .2s;
+  }
+  .sheet-backdrop.open{opacity:1;pointer-events:auto}
+
+  .index-sheet{
+    position:fixed;
+    top:0;left:0;
+    width:300px;height:100vh;
+    background:var(--newsprint);
+    border-right:3px double var(--ink);
+    z-index:1000;
+    transform:translateX(-100%);
+    transition:transform .25s ease;
+    padding:18px 20px;
+    overflow-y:auto;
+  }
+  .index-sheet.open{transform:translateX(0)}
+
+  .index-sheet .x{
+    position:absolute;top:12px;right:14px;
+    background:none;border:none;
+    font-family:'Space Mono',monospace;
+    font-size:14px;font-weight:700;
+    color:var(--ink);cursor:pointer;
+    padding:4px 8px;
+  }
+
+  .index-sheet .head{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-style:italic;
+    font-size:16px;
+    color:var(--ink);
+    border-bottom:1px solid var(--ink);
+    padding-bottom:6px;
+    margin-bottom:10px;
+  }
+
+  .index-sheet .subhead{
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin:18px 0 6px;
+    border-top:1px solid var(--aged);
+    padding-top:10px;
+  }
+
+  .index-sheet dl{
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:0 10px;
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    line-height:2;
+  }
+  .index-sheet dt{color:var(--ink)}
+  .index-sheet dt a{color:inherit;text-decoration:none}
+  .index-sheet dt a:hover{color:var(--accent)}
+  .index-sheet dd{color:var(--muted);text-align:right;letter-spacing:.08em}
+
+  .index-sheet .almanac-full dt{color:var(--muted)}
+  .index-sheet .almanac-full dd{color:var(--ink);font-weight:700;text-align:right}
+
+  .index-sheet .footer{
+    margin-top:24px;
+    padding-top:12px;
+    border-top:1px solid var(--aged);
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-size:11px;
+    color:var(--muted);
+    line-height:1.5;
+  }
+
+  @media (min-width:440px){
+    .sheet{width:100%;max-width:440px}
+    .mbottom{width:100%;max-width:440px}
+  }
+
+</style>
+</head>
+<body>
+
+<div class="sheet">
+
+  <!-- TOP BAR: hamburger + edition + sign-in -->
+  <div class="mbar">
+    <button class="hamb" aria-label="Open index" onclick="document.getElementById('sheet').classList.add('open');document.getElementById('bd').classList.add('open')">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="edition">
+      <span class="pill">VOL. I · № 024</span>
+    </div>
+    <span class="auth">Sign&nbsp;In</span>
+  </div>
+
+  <!-- SECONDARY FOLIO ROW -->
+  <div class="mfolio">
+    <span class="motto">“All the Deals That’s Fit to Print”</span>
+    <span class="sep">│</span>
+    <span>36°10′N · 115°08′W</span>
+  </div>
+
+  <!-- MASTHEAD -->
+  <header class="masthead">
+    <div class="latin-motto">Veritas · Cannabis · Economia</div>
+    <h1 class="masthead-title">Daily Weed Newspaper</h1>
+    <p class="masthead-subhead">
+      The Only Cannabis Publication<span class="tilde">§</span>That Actually Gives a Damn About Your Wallet
+    </p>
+
+    <!-- ALMANAC SLIM STRIP -->
+    <div class="malmanac" aria-label="Today's almanac">
+      <span class="label">Today’s Almanac</span>
+      <span class="grp">
+        <span><span class="val">78°/54°</span></span>
+        <span class="sep">│</span>
+        <span><span class="val">☾</span> Waxing Gibbous</span>
+      </span>
+    </div>
+
+    <!-- DATELINE -->
+    <div class="dateline">
+      <span class="row">Friday, April 24, 2026 <span class="divider"></span> Edition <span class="accent">№&nbsp;024</span></span>
+      <span class="row">Las Vegas · Nevada · U.S.A.</span>
+      <span class="row">16 Dispensaries <span class="divider"></span> <span class="accent">3,617</span> Menus Priced</span>
+    </div>
+  </header>
+
+  <!-- TICKER -->
+  <div class="ticker-shell" role="marquee" aria-label="Ziggy ticker">
+    <div class="ticker-flag">
+      <span class="dot" aria-hidden="true"></span>
+      <span>Live</span>
+    </div>
+    <div class="ticker-bar">
+      <div class="ticker-inner">
+        <span class="tk-tag">★ PICK OF THE DAY</span>Jeeter Baby Jeeter Infused — 42% OFF at Planet 13, now $24.99 — “your plug is irrelevant now”
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">★ ZIGGY REPORT</span>Strip dispensaries still charging 2022 prices
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">ON SALE</span>1,248 products discounted right now
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">LOW WATERMARK</span>Cheapest eighth spotted at $14.99
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">AVG PRICE</span>$38.74 across all menus
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">MARKET RATING</span>7.8 / 10 — prices softening
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">ZIGGY SAYS</span>“the math mathed and the deal dealt”
+        <span class="tk-sep">◆</span>
+        <span class="tk-tag">★ PICK OF THE DAY</span>Jeeter Baby Jeeter Infused — 42% OFF at Planet 13
+        <span class="tk-sep">◆</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS STRIP -->
+  <section class="stats-strip" aria-label="Market vitals">
+    <div class="stats-grid">
+
+      <div class="stat-box">
+        <div class="stat-kicker"><span class="tag">01</span> Total Products</div>
+        <div class="stat-number">3,617</div>
+        <div class="stat-hair"></div>
+        <div class="stat-sub">
+          Menus Priced
+          <span class="delta">▲ 142 vs. last ed.</span>
+        </div>
+      </div>
+
+      <div class="stat-box">
+        <div class="stat-kicker"><span class="tag">02</span> Dispensaries</div>
+        <div class="stat-number">16</div>
+        <div class="stat-hair"></div>
+        <div class="stat-sub">
+          Las Vegas Metro
+          <span class="delta">All Audited</span>
+        </div>
+      </div>
+
+      <div class="stat-box">
+        <div class="stat-kicker"><span class="tag">03</span> On Sale Now</div>
+        <div class="stat-number">1,248</div>
+        <div class="stat-hair"></div>
+        <div class="stat-sub">
+          34.5% of Inv.
+          <span class="delta">▲ 3.1 pts w/w</span>
+        </div>
+      </div>
+
+      <div class="stat-box">
+        <div class="stat-kicker"><span class="tag">04</span> Lowest Price</div>
+        <div class="stat-number"><span class="pre">$</span>4.99<span class="ast">*</span></div>
+        <div class="stat-hair"></div>
+        <div class="stat-sub">
+          Pre-Roll, 0.5g
+          <span class="delta">Thrive · N.L.V.</span>
+        </div>
+      </div>
+
+      <div class="stat-box span2">
+        <div class="stat-kicker"><span class="tag">05</span> Average Price (Across All Menus)</div>
+        <div class="stat-number"><span class="pre">$</span>38.74<span class="ast">*</span></div>
+        <div class="stat-hair"></div>
+        <div class="stat-sub">
+          Flower · Pre-Rolls · Concentrates · Edibles · Vapes
+          <span class="delta down">▼ $0.42 vs. last edition</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="stats-footnote">
+      <span><span class="ast">*</span>Excludes accessories, apparel &amp; novelty.</span>
+      <span class="meta">Sourced from public menus · Updated 06:00 PST</span>
+    </div>
+  </section>
+
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="mbottom" aria-label="Sections">
+  <a href="#" class="current"><span class="glyph">¶</span>Front</a>
+  <a href="#"><span class="glyph">$</span>Prices</a>
+  <a href="#"><span class="glyph">★</span>Top&nbsp;10</a>
+  <a href="#"><span class="glyph">☕</span>Tea</a>
+  <a href="#"><span class="glyph">Z</span>Ziggy</a>
+</nav>
+
+<!-- HAMBURGER SHEET -->
+<div class="sheet-backdrop" id="bd" onclick="document.getElementById('sheet').classList.remove('open');this.classList.remove('open')"></div>
+
+<aside class="index-sheet" id="sheet" aria-label="Today's Index">
+  <button class="x" aria-label="Close" onclick="document.getElementById('sheet').classList.remove('open');document.getElementById('bd').classList.remove('open')">✕</button>
+
+  <div class="head">Today’s Index</div>
+  <dl>
+    <dt><a href="#">Front Page</a></dt><dd>01</dd>
+    <dt><a href="#">Inside Scoop</a></dt><dd>02</dd>
+    <dt><a href="#">The Closer</a></dt><dd>03</dd>
+    <dt><a href="#">Market Data</a></dt><dd>04</dd>
+    <dt><a href="#">Ziggy’s Column</a></dt><dd>05</dd>
+    <dt><a href="#">Big Mike’s Tea</a></dt><dd>02</dd>
+    <dt><a href="#">Tourist Terry</a></dt><dd>03</dd>
+  </dl>
+
+  <div class="subhead">Today’s Almanac</div>
+  <dl class="almanac-full">
+    <dt>Sunrise</dt><dd>05:58</dd>
+    <dt>Sunset</dt><dd>19:14</dd>
+    <dt>High / Low</dt><dd>78° / 54°</dd>
+    <dt>Humidity</dt><dd>18%</dd>
+    <dt>Moon</dt><dd>Waxing Gibbous</dd>
+  </dl>
+
+  <div class="subhead">Edition</div>
+  <dl>
+    <dt>Volume</dt><dd>I</dd>
+    <dt>Number</dt><dd>024</dd>
+    <dt>Date</dt><dd>Apr 24 ’26</dd>
+    <dt>Latitude</dt><dd>36°10′N</dd>
+    <dt>Longitude</dt><dd>115°08′W</dd>
+  </dl>
+
+  <div class="footer">
+    “All the Deals That’s Fit to Print.”<br/>— Est. April 2026
+  </div>
+</aside>
+
+</body>
+</html>

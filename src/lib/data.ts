@@ -37,12 +37,29 @@ export interface CategoryWinner {
   dispensaryName: string | null;
 }
 
+export interface MinPriceProduct {
+  category: string;
+  weightGrams: number | null;
+  dispensaryName: string;
+  city: string | null;
+}
+
 export interface SiteStats {
   totalProducts: number;
   dispensaryCount: number;
   onSaleCount: number;
   minPrice: number;
   avgPrice: number;
+  // Excludes accessories, apparel, novelty (for stats strip display)
+  minPriceExAccessories: number;
+  avgPriceExAccessories: number;
+  minPriceProduct: MinPriceProduct | null;
+  onSalePct: number;
+  // Deltas vs. previous edition — null until daily_stats migration
+  totalProductsDelta: number | null;
+  onSalePctDeltaPts: number | null;
+  avgPriceDelta: number | null;
+  lastUpdatedAt: string;
 }
 
 export interface AvgByCategory {
@@ -109,12 +126,23 @@ const STRIP_DISPENSARY_IDS = [
 ];
 
 // ─── STATS ────────────────────────────────────────────────────
+function isAccessoryCategory(cat: string | null | undefined): boolean {
+  const c = (cat ?? "").toLowerCase();
+  return (
+    c.includes("accessor") ||
+    c.includes("apparel") ||
+    c.includes("gear") ||
+    c.includes("novelty")
+  );
+}
+
 async function getStats(): Promise<SiteStats> {
   const [
     { count: totalProducts },
     { count: onSaleCount },
     { count: dispensaryCount },
     { data: priceRows },
+    { data: minPriceRows },
   ] = await Promise.all([
     supabase
       .from("products")
@@ -132,24 +160,73 @@ async function getStats(): Promise<SiteStats> {
       .neq("slug", "__test__"),
     supabase
       .from("products")
-      .select("price")
+      .select("price, category")
       .eq("in_stock", true)
       .not("price", "is", null)
       .limit(5000),
+    // Cheapest non-accessory product for stats strip sub-label
+    supabase
+      .from("products")
+      .select("category, weight_grams, price, dispensaries(name, city)")
+      .eq("in_stock", true)
+      .not("price", "is", null)
+      .not("category", "ilike", "%accessor%")
+      .not("category", "ilike", "%apparel%")
+      .not("category", "ilike", "%novelty%")
+      .order("price", { ascending: true })
+      .limit(1),
   ]);
 
-  const prices = (priceRows ?? []).map((p) => Number(p.price)).filter((n) => n > 0);
-  const minPrice = prices.length ? Math.min(...prices) : 0;
-  const avgPrice = prices.length
-    ? prices.reduce((a, b) => a + b, 0) / prices.length
+  const allEntries = (priceRows ?? []).map((p) => ({
+    price: Number(p.price),
+    category: p.category as string | null,
+  }));
+  const allPrices = allEntries.filter((p) => p.price > 0).map((p) => p.price);
+  const exPrices = allEntries
+    .filter((p) => p.price > 0 && !isAccessoryCategory(p.category))
+    .map((p) => p.price);
+
+  const minPrice = allPrices.length ? Math.min(...allPrices) : 0;
+  const avgPrice = allPrices.length
+    ? allPrices.reduce((a, b) => a + b, 0) / allPrices.length
+    : 0;
+  const minPriceExAccessories = exPrices.length ? Math.min(...exPrices) : 0;
+  const avgPriceExAccessories = exPrices.length
+    ? exPrices.reduce((a, b) => a + b, 0) / exPrices.length
     : 0;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mpRow = (minPriceRows ?? [])[0] as any;
+  const mpDisp = Array.isArray(mpRow?.dispensaries)
+    ? mpRow.dispensaries[0]
+    : mpRow?.dispensaries;
+  const minPriceProduct: MinPriceProduct | null = mpRow
+    ? {
+        category: mpRow.category ?? "",
+        weightGrams: mpRow.weight_grams ? Number(mpRow.weight_grams) : null,
+        dispensaryName: mpDisp?.name ?? "",
+        city: mpDisp?.city ?? null,
+      }
+    : null;
+
+  const tp = totalProducts ?? 0;
+  const os = onSaleCount ?? 0;
+
   return {
-    totalProducts: totalProducts ?? 0,
+    totalProducts: tp,
     dispensaryCount: dispensaryCount ?? 0,
-    onSaleCount: onSaleCount ?? 0,
+    onSaleCount: os,
     minPrice,
     avgPrice,
+    minPriceExAccessories,
+    avgPriceExAccessories,
+    minPriceProduct,
+    onSalePct: tp > 0 ? (os / tp) * 100 : 0,
+    // Deltas require daily_stats table — null until that migration ships
+    totalProductsDelta: null,
+    onSalePctDeltaPts: null,
+    avgPriceDelta: null,
+    lastUpdatedAt: new Date().toISOString(),
   };
 }
 
