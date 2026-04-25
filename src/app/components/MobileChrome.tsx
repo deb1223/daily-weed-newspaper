@@ -70,7 +70,7 @@ export default function MobileChrome({ editionNum, shortDate }: Props) {
         <div className="sheet-head">Today&apos;s Index</div>
         <dl className="sheet-dl">
           <dt><Link href="/">Front Page</Link></dt><dd>01</dd>
-          <dt><Link href="/prices">Inside Scoop</Link></dt><dd>02</dd>
+          <dt><Link href="/#sheet">The Sheet</Link></dt><dd>02</dd>
           <dt><Link href="#">The Closer</Link></dt><dd>03</dd>
           <dt><Link href="#">Market Data</Link></dt><dd>04</dd>
           <dt><Link href="#">Ziggy&apos;s Column</Link></dt><dd>05</dd>
@@ -107,8 +107,8 @@ export default function MobileChrome({ editionNum, shortDate }: Props) {
         <Link href="/" className="mbottom-link mbottom-current">
           <span className="mbottom-glyph">¶</span>Front
         </Link>
-        <Link href="/prices" className="mbottom-link">
-          <span className="mbottom-glyph">$</span>Prices
+        <Link href="/#sheet" className="mbottom-link">
+          <span className="mbottom-glyph">$</span>The Sheet
         </Link>
         <Link href="/#top10" className="mbottom-link">
           <span className="mbottom-glyph">★</span>Top&nbsp;10

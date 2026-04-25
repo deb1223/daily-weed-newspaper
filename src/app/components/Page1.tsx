@@ -4,6 +4,7 @@ import { displayProductSize } from "@/lib/format";
 import EmailSignupForm from "./EmailSignupForm";
 import AuthLabel from "./AuthLabel";
 import VerdictCards from "./VerdictCards";
+import PriceTable from "./PriceTable";
 import MobileChrome from "./MobileChrome";
 
 const ZIGGY_LINERS = [
@@ -30,7 +31,7 @@ const ZIGGY_LINERS = [
 ];
 
 export default function Page1({ data }: { data: PageData }) {
-  const { stats, topDeals, dailyWinners, dailyBrief, sheetPreview } = data;
+  const { stats, topDeals, dailyWinners, dailyBrief } = data;
   const brief = dailyBrief?.brief_json ?? null;
 
   // Edition number: days since April 1 2026 launch
@@ -259,7 +260,7 @@ export default function Page1({ data }: { data: PageData }) {
       {/* ══ SECTION RAIL — desktop only ══════════════════════════════════════════ */}
       <nav className="section-rail" aria-label="Sections">
         <a href="/" className="section-link section-current">Front Page</a>
-        <a href="/prices" className="section-link">Price Dashboard</a>
+        <a href="/#sheet" className="section-link">The Sheet</a>
         <a href="/#top10" className="section-link">Top 10 Winners</a>
         <a href="#" className="section-link">Big Mike&apos;s Tea</a>
         <a href="#" className="section-link">Tourist Terry</a>
@@ -458,117 +459,14 @@ export default function Page1({ data }: { data: PageData }) {
         {/* Editorial transition */}
         <div className="b-transition">
           <span>
-            ↓&ensp;{stats.totalProducts.toLocaleString()} products below&ensp;↓
+            Ten verdicts not enough?&ensp;·&ensp;{stats.totalProducts.toLocaleString()} products below&ensp;↓
           </span>
         </div>
 
-        {/* The Sheet */}
-        <div className="b-sheet">
-          <div className="b-table-head">
-            <h3 className="b-sheet-title">The Sheet</h3>
-            <p className="b-sheet-deck">
-              Every product. Every menu. Every morning at 6 a.m. PST.
-            </p>
-          </div>
-
-          {/* Filter chips — links into /prices with pre-set filters */}
-          <div className="filter-strip" role="navigation" aria-label="Filter The Sheet">
-            <Link href="/prices" className="filter-chip filter-chip-active">All</Link>
-            <Link href="/prices?on_sale=true" className="filter-chip">
-              On Sale
-              <span className="filter-chip-count">{stats.onSaleCount.toLocaleString()}</span>
-            </Link>
-            <Link href="/prices?cat=Flower" className="filter-chip">Flower</Link>
-            <Link href="/prices?cat=Pre-Rolls" className="filter-chip">Pre-Rolls</Link>
-            <Link href="/prices?cat=Vape" className="filter-chip">Vape</Link>
-            <Link href="/prices?cat=Concentrates" className="filter-chip">Concentrates</Link>
-            <Link href="/prices?cat=Edibles" className="filter-chip">Edibles</Link>
-            <Link href="/prices?cat=Tinctures" className="filter-chip">Tinctures</Link>
-            <Link href="/prices?cat=RSO" className="filter-chip">RSO</Link>
-          </div>
-
-          {/* Price table */}
-          <table className="price-table" aria-label="The Sheet — top on-sale products">
-            <thead>
-              <tr>
-                <th className="pt-col-product">Product</th>
-                <th className="pt-col-where">Where</th>
-                <th className="pt-col-price">Price</th>
-                <th className="pt-col-mgd">mg/$ 🔒</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sheetPreview.length === 0 ? (
-                <tr>
-                  <td colSpan={4} style={{ textAlign: "center", padding: "24px", fontFamily: "Space Mono, monospace", fontSize: "11px", color: "var(--muted)" }}>
-                    No on-sale products found — check back after 6 a.m.
-                  </td>
-                </tr>
-              ) : (
-                sheetPreview.map((row) => (
-                  <tr key={row.id} className={row.discountPct >= 20 ? "pt-row-hot" : ""}>
-                    <td>
-                      <div className="pname">{row.name}</div>
-                      <div className="pmeta">
-                        {row.brand && <span>{row.brand}</span>}
-                        {row.weight_grams && (
-                          <span>
-                            {row.brand ? " · " : ""}
-                            {displayProductSize(row.name, row.category, row.weight_grams)}
-                          </span>
-                        )}
-                        {row.thc_percentage && (
-                          <span>
-                            {(row.brand || row.weight_grams) ? " · " : ""}
-                            {Number(row.thc_percentage).toFixed(1)}% THC
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="pdisp">{row.dispensaryName ?? "—"}</div>
-                    </td>
-                    <td>
-                      <span className="pt-price">${row.price.toFixed(2)}</span>
-                      {row.original_price && row.original_price > row.price && (
-                        <>
-                          {" "}
-                          <span className="pt-orig">
-                            ${row.original_price.toFixed(2)}
-                          </span>
-                          {" "}
-                          <span className="deal-discount-badge">
-                            -{row.discountPct}%
-                          </span>
-                        </>
-                      )}
-                    </td>
-                    <td>
-                      <span className="pt-mgd">🔒</span>
-                    </td>
-                  </tr>
-                ))
-              )}
-
-              {/* Gate row — sign-in CTA for mg/$ unlock */}
-              {sheetPreview.length > 0 && (
-                <tr className="gate-row">
-                  <td colSpan={4}>
-                    Sign in to unlock mg/$ sorting —{" "}
-                    <Link href="/prices">See full sheet in The Sheet →</Link>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-
-          {/* See all */}
-          <div className="sheet-pagination">
-            <Link href="/prices" className="sheet-see-all">
-              See all {stats.totalProducts.toLocaleString()} products in The Sheet →
-            </Link>
-          </div>
-        </div>
+        {/* The Sheet — full price table, embedded inline */}
+        <section id="sheet" aria-label="The Sheet — full price table">
+          <PriceTable embedded />
+        </section>
 
       </section>
 
@@ -640,8 +538,8 @@ export default function Page1({ data }: { data: PageData }) {
         dailyweednewspaper.com &middot; Las Vegas, Nevada &middot; All prices
         sourced from public dispensary menus and updated regularly.
         &nbsp;&middot;&nbsp;
-        <Link href="/prices" style={{ color: "var(--accent)" }}>
-          Price Dashboard
+        <Link href="/#sheet" style={{ color: "var(--accent)" }}>
+          The Sheet
         </Link>
       </footer>
     </>
