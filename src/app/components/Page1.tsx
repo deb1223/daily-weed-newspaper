@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { PageData } from "@/lib/data";
 import { displayProductSize } from "@/lib/format";
-import EmailSignupForm from "./EmailSignupForm";
 import AuthLabel from "./AuthLabel";
 import VerdictCards from "./VerdictCards";
 import PriceTable from "./PriceTable";
 import MobileChrome from "./MobileChrome";
+import NewsletterCapture from "./NewsletterCapture";
 
 const ZIGGY_LINERS = [
   "these idiots finally remembered how to run a sale",
@@ -470,68 +470,7 @@ export default function Page1({ data }: { data: PageData }) {
 
       </section>
 
-      {/* BOTTOM SECTION */}
-      <div className="bottom-grid">
-        <div className="bottom-column">
-          <span className="kicker">About Ziggy</span>
-          <h2 className="font-headline" style={{ fontSize: "22px", fontWeight: 900, marginBottom: "12px" }}>
-            One Correspondent. Zero Tolerance for Price Gouging.
-          </h2>
-          <p style={{ fontSize: "14px", lineHeight: "1.7", marginBottom: "12px" }}>
-            Ziggy is the pseudonymous price intelligence correspondent for the
-            Daily Weed Newspaper. He has visited every legal dispensary in Las
-            Vegas at least twice — once to buy, once to audit the menu. His
-            budget is $40 per visit. His standards are considerably higher.
-          </p>
-          <p style={{ fontSize: "14px", lineHeight: "1.7", marginBottom: "20px" }}>
-            The Daily Weed Newspaper publishes real-time price data pulled
-            directly from dispensary menus. No affiliate links. No sponsored
-            content. No mercy for $75 eighths.
-          </p>
-
-          <span className="kicker">Coming Soon</span>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "8px" }}>
-            {["Denver, CO", "Phoenix, AZ", "Portland, OR", "Los Angeles, CA", "Chicago, IL", "Detroit, MI"].map((city) => (
-              <div key={city} style={{ fontFamily: "Space Mono, monospace", fontSize: "11px", padding: "6px 8px", border: "1px solid var(--aged)", color: "var(--muted)" }}>
-                {city}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bottom-column">
-          <span className="kicker">Subscribe to Ziggy Intelligence</span>
-          <h2 className="font-headline" style={{ fontSize: "22px", fontWeight: 900, marginBottom: "4px" }}>
-            Don&apos;t Pay Dispensary Prices in the Dark
-          </h2>
-          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px", fontFamily: "Space Mono, monospace" }}>
-            Free tier included. No credit card required to start.
-          </p>
-
-          <div className="pricing-tiers">
-            <div className="pricing-tier">
-              <span className="kicker">Monthly</span>
-              <div className="tier-price">$9</div>
-              <p style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginTop: "4px" }}>
-                per month
-              </p>
-            </div>
-            <div className="pricing-tier" style={{ border: "3px solid var(--ink)" }}>
-              <span className="kicker" style={{ color: "var(--deal-green)" }}>
-                Annual · Best Value
-              </span>
-              <div className="tier-price">$99</div>
-              <p style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginTop: "4px" }}>
-                per year — save $9
-              </p>
-            </div>
-          </div>
-
-          <div style={{ marginTop: "20px" }}>
-            <EmailSignupForm tier="free" buttonText="Start Free — Upgrade Anytime" />
-          </div>
-        </div>
-      </div>
+      <NewsletterCapture />
 
       <footer className="site-footer">
         © {new Date().getFullYear()} Daily Weed Newspaper &middot;
