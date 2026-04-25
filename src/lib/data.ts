@@ -451,53 +451,74 @@ const WINNER_CATEGORY_KEYS = [
 async function getDailyWinners(): Promise<DailyWinner[]> {
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data } = await supabase
+  // Step 1: fetch winner rows for today.
+  // NOTE: daily_winners.product_id has no FK constraint yet, so PostgREST cannot
+  // do an implicit join. We use two explicit queries instead.
+  const { data: winnerRows } = await supabase
     .from("daily_winners")
-    .select(
-      "category_key, metric_display, product_id, products!left(id, name, brand, price, thc_percentage, weight_grams, product_url, dispensaries!left(name))"
-    )
+    .select("category_key, metric_display, product_id")
     .eq("date", today);
 
-  // Index fetched rows by category key
-  const byKey = new Map<string, DailyWinner>();
-  for (const row of data ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r = row as unknown as {
-      category_key: string;
-      metric_display: string | null;
-      product_id: string | null;
-      products: {
-        id: string;
-        name: string;
-        brand: string | null;
-        price: number;
-        thc_percentage: number | null;
-        weight_grams: number | null;
-        product_url: string | null;
-        dispensaries: { name: string } | null;
-      } | null;
-    };
+  if (!winnerRows || winnerRows.length === 0) {
+    return WINNER_CATEGORY_KEYS.map((key) => ({
+      category_key: key,
+      metric_display: null,
+      product: null,
+    }));
+  }
 
-    const prod = r.products;
-    byKey.set(r.category_key, {
-      category_key: r.category_key,
-      metric_display: r.metric_display,
-      product: prod
-        ? {
-            id: prod.id,
-            name: prod.name,
-            brand: prod.brand,
-            price: Number(prod.price),
-            thc_percentage: prod.thc_percentage,
-            weight_grams: prod.weight_grams,
-            product_url: prod.product_url,
-            dispensary_name: (prod.dispensaries as { name: string } | null)?.name ?? null,
-          }
-        : null,
+  // Step 2: fetch product details for all winner product_ids in one query.
+  const productIds = winnerRows
+    .map((r) => (r as { product_id: string | null }).product_id)
+    .filter((id): id is string => id !== null);
+
+  const productById = new Map<string, DailyWinnerProduct>();
+
+  if (productIds.length > 0) {
+    const { data: productRows } = await supabase
+      .from("products")
+      .select("id, name, brand, price, thc_percentage, weight_grams, product_url, dispensaries(name)")
+      .in("id", productIds);
+
+    for (const p of (productRows ?? []) as unknown as Array<{
+      id: string;
+      name: string;
+      brand: string | null;
+      price: number;
+      thc_percentage: number | null;
+      weight_grams: number | null;
+      product_url: string | null;
+      dispensaries: { name: string } | { name: string }[] | null;
+    }>) {
+      const disp = Array.isArray(p.dispensaries) ? p.dispensaries[0] : p.dispensaries;
+      productById.set(p.id, {
+        id: p.id,
+        name: p.name,
+        brand: p.brand,
+        price: Number(p.price),
+        thc_percentage: p.thc_percentage,
+        weight_grams: p.weight_grams,
+        product_url: p.product_url,
+        dispensary_name: disp?.name ?? null,
+      });
+    }
+  }
+
+  // Step 3: assemble winners indexed by category key.
+  const byKey = new Map<string, DailyWinner>();
+  for (const row of winnerRows as unknown as Array<{
+    category_key: string;
+    metric_display: string | null;
+    product_id: string | null;
+  }>) {
+    byKey.set(row.category_key, {
+      category_key: row.category_key,
+      metric_display: row.metric_display,
+      product: row.product_id ? (productById.get(row.product_id) ?? null) : null,
     });
   }
 
-  // Return all 10 categories in fixed order, filling empty state for missing ones
+  // Return all 10 categories in fixed order, empty state for any missing.
   return WINNER_CATEGORY_KEYS.map((key) => byKey.get(key) ?? {
     category_key: key,
     metric_display: null,
