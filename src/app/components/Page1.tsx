@@ -5,7 +5,7 @@ import AuthLabel from "./AuthLabel";
 import VerdictCards from "./VerdictCards";
 import PriceTable from "./PriceTable";
 import MobileChrome from "./MobileChrome";
-import NewsletterCapture from "./NewsletterCapture";
+import BottomCTA from "./BottomCTA";
 
 const ZIGGY_LINERS = [
   "these idiots finally remembered how to run a sale",
@@ -470,7 +470,7 @@ export default function Page1({ data }: { data: PageData }) {
 
       </section>
 
-      <NewsletterCapture />
+      <BottomCTA />
 
       <footer className="site-footer">
         © {new Date().getFullYear()} Daily Weed Newspaper &middot;

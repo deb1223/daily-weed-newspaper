@@ -803,143 +803,294 @@ body::after {
   font-style: italic;
 }
 
-/* ─── NEWSLETTER CAPTURE CARD ──────────────────────────────── */
-.nl-card {
-  max-width: 1400px;
+/* ─── BOTTOM CTA — Morning Edition signup ───────────────────── */
+.cta-wrap {
+  border-top: 3px double var(--ink);
+  background: var(--newsprint);
+  padding: 0;
+  max-width: 680px;
   margin: 40px auto 0;
-  padding: 0 24px;
 }
 
-.nl-inner {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  border: 2px solid var(--ink);
-  outline: 4px solid var(--ink);
-  outline-offset: 3px;
-  background: var(--aged);
-  padding: 28px 32px;
+/* Masthead */
+.cta-mast {
+  text-align: center;
+  padding: 22px 18px 0;
+  position: relative;
+}
+
+.cta-stamp {
+  display: inline-block;
+  border: 1px solid var(--ink);
+  padding: 3px 10px;
   font-family: 'Space Mono', monospace;
-}
-
-.nl-copy {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.nl-headline {
-  font-family: 'Playfair Display', serif;
-  font-size: 18px;
-  font-weight: 900;
-  color: var(--ink);
-  line-height: 1.2;
-  margin: 0 0 6px;
-  letter-spacing: -0.01em;
-}
-
-.nl-sub {
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 0;
-}
-
-.nl-col-rule {
-  width: 1px;
-  align-self: stretch;
-  background: var(--ink);
-  margin: 0 32px;
-  flex-shrink: 0;
-}
-
-.nl-form {
-  flex: 0 0 auto;
-  min-width: 260px;
-}
-
-.nl-fields {
-  display: flex;
-  gap: 0;
-}
-
-.nl-input {
-  flex: 1 1 auto;
-  font-family: 'Space Mono', monospace;
-  font-size: 11px;
-  padding: 10px 12px;
-  border: 2px solid var(--ink);
-  border-right: none;
-  background: var(--paper);
   color: var(--ink);
+  margin-bottom: 14px;
+  transform: rotate(-1.5deg);
+  background: var(--aged);
+}
+
+.cta-stamp-red {
+  color: var(--ticker-red);
+  font-weight: 700;
+}
+
+.cta-h2 {
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-style: italic;
+  font-size: 30px;
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+
+.cta-frak {
+  font-family: 'UnifrakturMaguntia', cursive;
+  font-style: normal;
+  font-weight: 400;
+  color: #2d6a4f;
+  font-size: 1.1em;
+  letter-spacing: 0;
+}
+
+.cta-deck {
+  font-family: 'Source Serif 4', serif;
+  font-style: italic;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0 4px 16px;
+  text-wrap: pretty;
+}
+
+/* Form — triple rule treatment */
+.cta-form {
+  margin: 0 14px;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding: 12px 0;
+  position: relative;
+}
+
+.cta-form::before,
+.cta-form::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--ink);
+}
+
+.cta-form::before { top: -4px; }
+.cta-form::after  { bottom: -4px; }
+
+.cta-form label {
+  display: block;
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+  padding: 0 4px;
+}
+
+.cta-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0;
+  align-items: stretch;
+}
+
+.cta-form input {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid var(--ink);
+  border-right: none;
+  background: #fbf7e8;
+  padding: 11px 12px;
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  color: var(--ink);
+  width: 100%;
   border-radius: 0;
   outline: none;
-  min-width: 0;
 }
 
-.nl-input::placeholder { color: var(--muted); }
-.nl-input:focus { background: #fff; }
+.cta-form input::placeholder { color: var(--muted); font-style: italic; }
+.cta-form input:focus { background: #fff; }
+.cta-form input:disabled { opacity: 0.6; }
 
-.nl-btn {
-  font-family: 'Space Mono', monospace;
-  font-size: 14px;
-  font-weight: 700;
-  padding: 10px 18px;
-  border: 2px solid var(--ink);
+.cta-form button[type="submit"] {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid var(--ink);
   background: var(--ink);
-  color: var(--paper);
-  border-radius: 0;
+  color: var(--newsprint);
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0 16px;
   cursor: pointer;
-  flex-shrink: 0;
-  line-height: 1;
+  border-radius: 0;
+  white-space: nowrap;
 }
 
-.nl-btn:hover { background: var(--accent); border-color: var(--accent); }
-.nl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cta-form button[type="submit"]:hover { background: #2d6a4f; border-color: #2d6a4f; }
+.cta-form button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.nl-success {
-  font-family: 'Space Mono', monospace;
-  font-size: 11px;
-  color: var(--deal-green);
-  margin: 0;
-  padding: 10px 0;
-  letter-spacing: 0.02em;
-}
+.cta-arr { color: var(--deal-green); margin-left: 4px; }
 
-.nl-error {
+.cta-err {
   font-family: 'Space Mono', monospace;
-  font-size: 11px;
+  font-size: 9px;
   color: var(--muted);
-  margin: 0;
-  padding: 10px 0;
+  margin: 6px 4px 0;
 }
 
-.nl-retry {
+.cta-retry {
   background: none;
   border: none;
   text-decoration: underline;
   cursor: pointer;
   font-family: 'Space Mono', monospace;
-  font-size: 11px;
+  font-size: 9px;
   color: var(--muted);
   padding: 0;
 }
 
-@media (max-width: 700px) {
-  .nl-inner {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 20px;
-    padding: 20px;
-  }
-  .nl-col-rule {
-    width: auto;
-    height: 1px;
-    align-self: auto;
-    margin: 0;
-  }
-  .nl-form { min-width: 0; }
+.cta-promise {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding: 0 4px;
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cta-check { color: #2d6a4f; font-weight: 700; margin-right: 3px; }
+
+/* Receipt */
+.cta-receipt {
+  margin: 18px 14px 0;
+  border: 1px solid var(--ink);
+  background: var(--aged);
+  padding: 14px 14px 12px;
+  position: relative;
+}
+
+.cta-receipt::before {
+  content: '¶';
+  position: absolute;
+  top: -12px;
+  left: 14px;
+  background: var(--newsprint);
+  padding: 0 6px;
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-style: italic;
+  font-size: 18px;
+  color: var(--ink);
+}
+
+.cta-receipt-head {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--ink);
+}
+
+.cta-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 12px;
+  align-items: baseline;
+}
+
+.cta-dl dt {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2d6a4f;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+
+.cta-dl dd {
+  font-family: 'Source Serif 4', serif;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+.cta-dl dd em {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-family: 'Space Mono', monospace;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  display: block;
+  margin-top: 1px;
+}
+
+/* Proof line */
+.cta-proof {
+  margin: 14px 14px 0;
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--aged);
+  text-align: center;
+  font-family: 'Source Serif 4', serif;
+  font-style: italic;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.cta-proof b {
+  font-style: normal;
+  color: var(--ink);
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* Fine print */
+.cta-fineprint {
+  padding: 14px 18px 22px;
+  text-align: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.cta-sep { margin: 0 6px; opacity: 0.5; }
+
+.cta-fineprint a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ─── FOOTER ────────────────────────────────────────────────── */
