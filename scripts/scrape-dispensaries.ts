@@ -3,6 +3,7 @@ import { chromium, type Page } from 'playwright'
 import * as dotenv from 'dotenv'
 import path from 'path'
 import { classifySubtype } from './classify-subtype'
+import { run as runComputeWinners } from './compute-winners-logic'
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') })
 
@@ -1653,6 +1654,15 @@ async function main() {
   console.log(`  Total products saved: ${totalProducts}`)
   console.log(`  Total failed: ${totalFailed}`)
   console.log('=====================================')
+
+  // ── Chain compute-winners on fresh data ───────────────────────────────────
+  console.log('\n══ Computing Daily Winners ══')
+  try {
+    const result = await runComputeWinners(supabase)
+    console.log(`✓ Winners: ${result.computed} categories (${result.empty} empty)`)
+  } catch (e) {
+    console.error('✗ compute-winners error:', e)
+  }
 }
 
 main().catch(console.error)
