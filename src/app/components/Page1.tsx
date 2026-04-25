@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { PageData } from "@/lib/data";
-import { displayProductSize, calcMgPerDollar } from "@/lib/format";
+import { displayProductSize } from "@/lib/format";
 import EmailSignupForm from "./EmailSignupForm";
 import AuthLabel from "./AuthLabel";
-import Top10Table from "./Top10Table";
+import VerdictCards from "./VerdictCards";
 import MobileChrome from "./MobileChrome";
 
 const ZIGGY_LINERS = [
@@ -30,7 +30,7 @@ const ZIGGY_LINERS = [
 ];
 
 export default function Page1({ data }: { data: PageData }) {
-  const { stats, topDeals, dailyWinners, dailyBrief } = data;
+  const { stats, topDeals, dailyWinners, dailyBrief, sheetPreview } = data;
   const brief = dailyBrief?.brief_json ?? null;
 
   // Edition number: days since April 1 2026 launch
@@ -99,6 +99,17 @@ export default function Page1({ data }: { data: PageData }) {
   // Stats deltas helpers
   const totalDelta = stats.totalProductsDelta;
   const avgDelta = stats.avgPriceDelta;
+
+  // Verdict card quips — resolved per card from brief.dealCommentary (by productId), fallback to rotating liners
+  const verdictQuips = dailyWinners.map((w, i) => {
+    const pid = w.product?.id;
+    const fromBrief = pid && brief?.dealCommentary?.find((c) => c.productId === pid)?.quip;
+    return fromBrief || ZIGGY_LINERS[(now.getDay() + i) % ZIGGY_LINERS.length];
+  });
+
+  // Biggest Mover — TODO: needs price_history table for real ∆ calculation
+  // Fallback: highest-discount deal from today's topDeals
+  const biggestMover = topDeals[0] ?? null;
 
   // Min price product sub-label
   const mpp = stats.minPriceProduct;
@@ -390,188 +401,176 @@ export default function Page1({ data }: { data: PageData }) {
         </div>
       </section>
 
-      {/* ═════════════════════════════════════════════════════════════════════════
-          STOP: everything below this line is untouched per brief scope
-          ═════════════════════════════════════════════════════════════════════ */}
+      {/* ══ MIDDLE SECTION — VERSION B ═══════════════════════════════════════════ */}
+      <section className="b-section" aria-label="Today's Verdicts">
 
-      {/* 3-COLUMN GRID */}
-      <div className="newspaper-grid">
-        {/* LEFT COLUMN */}
-        <div className="column">
-          <span className="kicker">Ziggy&apos;s Top 10 Winners</span>
-          <h2
-            className="font-headline"
-            style={{ fontSize: "20px", fontWeight: 900, marginBottom: "4px" }}
-          >
-            Ziggy&apos;s Top 10
-          </h2>
-          <p style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginBottom: "12px", lineHeight: 1.6 }}>
-            The best value in Vegas right now, by category. Shake gets its own trophy so it stops stealing flower&apos;s.
+        {/* Section head */}
+        <div className="sec-head">
+          <span className="kicker">§ Today&apos;s Verdicts · Swipe</span>
+          <h2 className="sec-head-h2">Ten categories. Ten correct answers.</h2>
+          <p className="sec-head-deck">
+            One winner per lane. Swipe horizontally — leader is in ink.
           </p>
-          <Top10Table winners={dailyWinners} />
+        </div>
 
-          {/* Ziggy's Savage Corner */}
-          <div className="gorks-corner" style={{ marginTop: "24px" }}>
-            <span className="kicker" style={{ color: "#d4af37" }}>
-              Ziggy&apos;s Savage Corner
-            </span>
-            <p style={{ marginTop: "8px", fontSize: "13px", fontStyle: "italic", lineHeight: 1.6 }}>
-              &ldquo;{brief?.savageCorner ?? "I walked into a Strip dispensary and asked for their best deal. The budtender pointed to a $65 eighth. I asked if that was a joke. He said that was their loyalty price. I have not stopped laughing since. The market is a crime scene, and I am the detective."}&rdquo;
-            </p>
-            <p style={{ marginTop: "8px", fontSize: "11px", color: "#d4af37" }}>
-              — Ziggy, Staff Correspondent
-            </p>
-          </div>
+        {/* Verdict leaderboard */}
+        <div className="b-leaderboard">
+          <VerdictCards winners={dailyWinners} quips={verdictQuips} />
 
-          <div style={{ marginTop: "24px", padding: "16px", border: "1px solid var(--aged)" }}>
-            <span className="kicker">Market Pulse</span>
-            <div style={{ fontFamily: "Space Mono, monospace", fontSize: "11px", lineHeight: "2", color: "var(--muted)" }}>
-              <div>
-                {stats.onSaleCount.toLocaleString()} items on sale ={" "}
-                <strong style={{ color: "var(--deal-green)" }}>
-                  {Math.round((stats.onSaleCount / stats.totalProducts) * 100)}%
-                </strong>{" "}
-                of inventory
+          {/* Rail: Today's Pulse + Biggest Mover */}
+          <div className="b-rail">
+
+            {/* Today's Pulse */}
+            <div className="b-rail-panel">
+              <div className="b-rail-label">Today&apos;s Pulse</div>
+              <span className="b-sparkline" aria-hidden="true">▁▂▃▂▄▅▆▅▇</span>
+              <div className="b-rail-number">
+                {avgDelta !== null ? (
+                  <>{avgDelta >= 0 ? "+" : ""}{avgDelta.toFixed(2)}</>
+                ) : (
+                  "—"
+                )}
               </div>
-              <div>Lowest price spotted:{" "}
-                <strong style={{ color: "var(--accent)" }}>
-                  ${stats.minPrice.toFixed(2)}
-                </strong>
-              </div>
-              <div>Avg price across all products:{" "}
-                <strong style={{ color: "var(--ink)" }}>
-                  ${stats.avgPrice.toFixed(2)}
-                </strong>
-              </div>
+              <div className="b-rail-sub">avg price vs. last edition</div>
             </div>
+
+            {/* Biggest Mover — TODO: needs price_history for real ∆; fallback to top discount */}
+            <div className="b-rail-panel">
+              <div className="b-rail-label">Biggest Mover</div>
+              {biggestMover ? (
+                <>
+                  <div className="b-rail-number b-rail-number-green">
+                    -{biggestMover.discountPct}%
+                  </div>
+                  <div className="b-rail-name">{biggestMover.name}</div>
+                  <div className="b-rail-sub">
+                    {biggestMover.dispensaries?.name ?? "local dispensary"}
+                  </div>
+                </>
+              ) : (
+                <div className="b-rail-sub b-rail-todo">Coming soon</div>
+              )}
+            </div>
+
           </div>
         </div>
 
-        {/* DIVIDER */}
-        <div className="column-divider" />
+        {/* Editorial transition */}
+        <div className="b-transition">
+          <span>
+            ↓&ensp;{stats.totalProducts.toLocaleString()} products below&ensp;↓
+          </span>
+        </div>
 
-        {/* CENTER COLUMN */}
-        <div className="column">
-          <span className="kicker">Top 5 Steals of the Day</span>
-          <h2 className="hero-headline">
-            Don&apos;t Say Ziggy Never Gave You Nothing
-          </h2>
-          <div className="byline-bar">
-            By Ziggy, Price Intelligence Correspondent &middot; Updated{" "}
-            {now.toLocaleDateString("en-US", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
+        {/* The Sheet */}
+        <div className="b-sheet">
+          <div className="b-table-head">
+            <h3 className="b-sheet-title">The Sheet</h3>
+            <p className="b-sheet-deck">
+              Every product. Every menu. Every morning at 6 a.m. PST.
+            </p>
           </div>
-          <p
-            className="drop-cap"
-            style={{ marginBottom: "20px", fontSize: "14px", lineHeight: "1.7" }}
-          >
-            {brief?.intro ?? "Yo. I'm Ziggy. Been smoking since 14. Calling out mid since 15. Every morning I dig through every dispensary menu in Vegas so you don't have to overpay. The market is a crime scene. I'm the detective. The following five products are the ones I actually co-sign today. You're welcome."}
-          </p>
 
-          {topDeals.length === 0 ? (
-            <div className="gork-empty">
-              <div className="gork-empty-headline">Ziggy Found Nothing Today</div>
-              <p>
-                The market offers no mercy. Check back tomorrow, or visit the
-                Price Dashboard.
-              </p>
-            </div>
-          ) : (
-            topDeals.map((dealItem, i) => (
-              <div key={dealItem.id} className="deal-box">
-                <span className="deal-number">#{i + 1}</span>
-                <div className="deal-name">
-                  {dealItem.name}
-                  {dealItem.weight_grams && (
-                    <span style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginLeft: "8px", fontWeight: 400 }}>
-                      {displayProductSize(dealItem.name, dealItem.category, dealItem.weight_grams)}
-                    </span>
-                  )}
-                </div>
-                <div className="deal-dispensary">
-                  {dealItem.dispensaries?.name ?? "Unknown Dispensary"}
-                  {dealItem.brand && (
-                    <span style={{ color: "var(--muted)", marginLeft: "6px" }}>
-                      · {dealItem.brand}
-                    </span>
-                  )}
-                </div>
-                <div className="deal-prices">
-                  <span className="deal-price-sale">
-                    ${Number(dealItem.price).toFixed(2)}
-                  </span>
-                  {dealItem.original_price && (
-                    <span className="deal-price-orig">
-                      ${Number(dealItem.original_price).toFixed(2)}
-                    </span>
-                  )}
-                  <span className="deal-discount-badge">
-                    -{dealItem.discountPct}%
-                  </span>
-                  {dealItem.thc_percentage && (
-                    <span style={{ fontFamily: "Space Mono, monospace", fontSize: "10px", color: "var(--muted)", marginLeft: "4px" }}>
-                      {Number(dealItem.thc_percentage).toFixed(1)}% THC
-                    </span>
-                  )}
-                </div>
-                <div className="deal-gork-line">
-                  {brief?.dealCommentary?.[i]?.quip ?? ZIGGY_LINERS[i % ZIGGY_LINERS.length]}
-                </div>
-              </div>
-            ))
-          )}
+          {/* Filter chips — links into /prices with pre-set filters */}
+          <div className="filter-strip" role="navigation" aria-label="Filter The Sheet">
+            <Link href="/prices" className="filter-chip filter-chip-active">All</Link>
+            <Link href="/prices?on_sale=true" className="filter-chip">
+              On Sale
+              <span className="filter-chip-count">{stats.onSaleCount.toLocaleString()}</span>
+            </Link>
+            <Link href="/prices?cat=Flower" className="filter-chip">Flower</Link>
+            <Link href="/prices?cat=Pre-Rolls" className="filter-chip">Pre-Rolls</Link>
+            <Link href="/prices?cat=Vape" className="filter-chip">Vape</Link>
+            <Link href="/prices?cat=Concentrates" className="filter-chip">Concentrates</Link>
+            <Link href="/prices?cat=Edibles" className="filter-chip">Edibles</Link>
+            <Link href="/prices?cat=Tinctures" className="filter-chip">Tinctures</Link>
+            <Link href="/prices?cat=RSO" className="filter-chip">RSO</Link>
+          </div>
 
-          <div style={{ textAlign: "right", marginTop: "8px" }}>
-            <Link
-              href="/prices"
-              style={{ fontFamily: "Space Mono, monospace", fontSize: "11px", color: "var(--accent)", textDecoration: "none", borderBottom: "1px solid var(--accent)" }}
-            >
-              See all {stats.onSaleCount.toLocaleString()} deals in the Price Dashboard →
+          {/* Price table */}
+          <table className="price-table" aria-label="The Sheet — top on-sale products">
+            <thead>
+              <tr>
+                <th className="pt-col-product">Product</th>
+                <th className="pt-col-where">Where</th>
+                <th className="pt-col-price">Price</th>
+                <th className="pt-col-mgd">mg/$ 🔒</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sheetPreview.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: "center", padding: "24px", fontFamily: "Space Mono, monospace", fontSize: "11px", color: "var(--muted)" }}>
+                    No on-sale products found — check back after 6 a.m.
+                  </td>
+                </tr>
+              ) : (
+                sheetPreview.map((row) => (
+                  <tr key={row.id} className={row.discountPct >= 20 ? "pt-row-hot" : ""}>
+                    <td>
+                      <div className="pname">{row.name}</div>
+                      <div className="pmeta">
+                        {row.brand && <span>{row.brand}</span>}
+                        {row.weight_grams && (
+                          <span>
+                            {row.brand ? " · " : ""}
+                            {displayProductSize(row.name, row.category, row.weight_grams)}
+                          </span>
+                        )}
+                        {row.thc_percentage && (
+                          <span>
+                            {(row.brand || row.weight_grams) ? " · " : ""}
+                            {Number(row.thc_percentage).toFixed(1)}% THC
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="pdisp">{row.dispensaryName ?? "—"}</div>
+                    </td>
+                    <td>
+                      <span className="pt-price">${row.price.toFixed(2)}</span>
+                      {row.original_price && row.original_price > row.price && (
+                        <>
+                          {" "}
+                          <span className="pt-orig">
+                            ${row.original_price.toFixed(2)}
+                          </span>
+                          {" "}
+                          <span className="deal-discount-badge">
+                            -{row.discountPct}%
+                          </span>
+                        </>
+                      )}
+                    </td>
+                    <td>
+                      <span className="pt-mgd">🔒</span>
+                    </td>
+                  </tr>
+                ))
+              )}
+
+              {/* Gate row — sign-in CTA for mg/$ unlock */}
+              {sheetPreview.length > 0 && (
+                <tr className="gate-row">
+                  <td colSpan={4}>
+                    Sign in to unlock mg/$ sorting —{" "}
+                    <Link href="/prices">See full sheet in The Sheet →</Link>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {/* See all */}
+          <div className="sheet-pagination">
+            <Link href="/prices" className="sheet-see-all">
+              See all {stats.totalProducts.toLocaleString()} products in The Sheet →
             </Link>
           </div>
         </div>
 
-        {/* DIVIDER */}
-        <div className="column-divider" />
-
-        {/* RIGHT COLUMN */}
-        <div className="column">
-          <div className="pro-signup-box">
-            <span className="kicker">Ziggy Pro Intelligence</span>
-            <div className="pro-headline">Get the Full Picture</div>
-            <div className="pro-price">
-              $9
-              <span style={{ fontSize: "14px", fontFamily: "Space Mono, monospace", color: "var(--muted)" }}>
-                /mo
-              </span>
-            </div>
-            <ul className="pro-features">
-              <li>Daily price alerts for your favorite strains</li>
-              <li>Full dispensary comparison across all 16 locations</li>
-              <li>Historical price tracking — know the trends</li>
-              <li>Ziggy&apos;s exclusive weekly deep dive</li>
-              <li>Export to CSV for the truly obsessed</li>
-            </ul>
-            <EmailSignupForm tier="pro" buttonText="Get Pro — $9/mo" />
-          </div>
-
-          {/* Ziggy's Rating */}
-          <div className="gork-rating">
-            <span className="kicker">Ziggy&apos;s Market Rating</span>
-            <div className="rating-number">{brief?.marketRating ?? 7.8}</div>
-            <div style={{ fontFamily: "Space Mono, monospace", fontSize: "11px", color: "var(--muted)" }}>
-              /10 — Market Confidence
-            </div>
-            <p style={{ fontFamily: "Source Serif 4, serif", fontSize: "12px", marginTop: "8px", fontStyle: "italic", color: "var(--muted)" }}>
-              &ldquo;{brief?.ratingQuote ?? "Prices are improving. Slowly. Like a high that takes 45 minutes."}&rdquo;
-            </p>
-          </div>
-        </div>
-      </div>
+      </section>
 
       {/* BOTTOM SECTION */}
       <div className="bottom-grid">
