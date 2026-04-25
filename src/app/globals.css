@@ -2367,7 +2367,7 @@ body > div > div {
 .b-lb-rank {
   font-family: 'Space Mono', monospace;
   font-size: 28px; font-weight: 700;
-  color: var(--aged);
+  color: #1a4a32;
   line-height: 1;
   margin-bottom: 4px;
 }

@@ -59,11 +59,10 @@ export default function VerdictCards({ winners, quips }: Props) {
       >
         {winners.map((w, i) => {
           const p = w.product;
-          const isLead = i === 0;
           return (
             <div
               key={w.category_key}
-              className={`b-lb-card${isLead ? " lead" : ""}`}
+              className={`b-lb-card${i % 2 === 0 ? " lead" : ""}`}
               data-idx={i}
               aria-label={`Card ${i + 1} of ${total}: ${CAT_LABELS[w.category_key] ?? w.category_key}`}
             >
