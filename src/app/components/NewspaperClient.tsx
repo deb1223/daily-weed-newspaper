@@ -9,8 +9,6 @@ import Page3 from "./Page3";
 
 export interface GateProps {
   isPro: boolean;
-  /** 0-based indices of the 7 winner cards revealed to this session */
-  revealedIndices: number[];
 }
 
 const PAGE_LABELS = ["Front Page", "The Sheet", "The Closer", "The Back Page"];
