@@ -407,8 +407,8 @@ export default function Page1({ data }: { data: PageData }) {
 
         {/* Section head */}
         <div className="sec-head">
-          <span className="kicker">§ Today&apos;s Verdicts · Swipe</span>
-          <h2 className="sec-head-h2">Ten categories. Ten correct answers.</h2>
+          <span className="kicker">§ Lucky 7 · Today&apos;s Verdicts · Swipe</span>
+          <h2 className="sec-head-h2">Seven categories. Seven correct answers.</h2>
           <p className="sec-head-deck">
             One winner per lane. Swipe horizontally — leader is in ink.
           </p>
@@ -459,7 +459,7 @@ export default function Page1({ data }: { data: PageData }) {
         {/* Editorial transition */}
         <div className="b-transition">
           <span>
-            Ten verdicts not enough?&ensp;·&ensp;{stats.totalProducts.toLocaleString()} products below&ensp;↓
+            Seven verdicts not enough?&ensp;·&ensp;{stats.totalProducts.toLocaleString()} products below&ensp;↓
           </span>
         </div>
 

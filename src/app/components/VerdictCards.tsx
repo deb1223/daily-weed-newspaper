@@ -4,16 +4,13 @@ import { useRef, useState, useEffect } from "react";
 import { DailyWinner } from "@/lib/data";
 
 const CAT_LABELS: Record<string, string> = {
-  best_value_flower: "Best Value Flower",
-  cheapest_eighth: "Cheapest 1/8",
-  shake: "Shake",
-  prerolls: "Pre-Rolls",
-  vape_cart: "Vape Cart",
-  vape_disposable: "Disposable Vape",
-  concentrates: "Concentrates",
-  rso: "RSO",
-  edibles: "Edibles",
-  tinctures: "Tinctures",
+  cheapest_eighth:  "Cheapest Eighth",
+  vape_cart:        "1g Cart",
+  edibles:          "100mg Edible",
+  concentrates:     "1g Live Resin",
+  prerolls:         "Single Pre-Roll",
+  infused_preroll:  "Infused Pre-Roll",
+  vape_disposable:  "1g Disposable",
 };
 
 interface Props {

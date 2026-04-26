@@ -79,7 +79,19 @@ function isPrerollSingle(p: ProductRow): boolean {
   const cat = lc(p.category);
   if (!cat.includes("pre-roll") && !cat.includes("preroll") && !cat.includes("pre roll")) return false;
   const n = lc(p.name);
-  return !(/\b\d+-?pack\b|\/pk|\d+\s*x\s*\d*\.?\d+g/.test(n) || n.includes(" pack") || n.includes("multi"));
+  if (/\b\d+-?pack\b|\/pk|\d+\s*x\s*\d*\.?\d+g/.test(n) || n.includes(" pack") || n.includes("multi")) return false;
+  // Exclude infused — they have their own category
+  if (n.includes("infused") || n.includes("liquid diamond") || n.includes("live resin") || n.includes("kief")) return false;
+  return true;
+}
+
+function isInfusedPreroll(p: ProductRow): boolean {
+  const cat = lc(p.category);
+  if (!cat.includes("pre-roll") && !cat.includes("preroll") && !cat.includes("pre roll")) return false;
+  const n = lc(p.name);
+  // Pack exclusion still applies
+  if (/\b\d+-?pack\b|\/pk|\d+\s*x\s*\d*\.?\d+g/.test(n) || n.includes(" pack") || n.includes("multi")) return false;
+  return n.includes("infused") || n.includes("liquid diamond") || n.includes("live resin") || n.includes("kief");
 }
 
 // Fix 2: vape_cart AND vape_pod both qualify as "cart" category
@@ -148,68 +160,49 @@ type CategorySpec = {
   metric: "mg_per_dollar" | "lowest_price";
 };
 
+// ── Lucky 7 — the canonical categories ───────────────────────────────────────
 const CATEGORY_SPECS: CategorySpec[] = [
   {
-    key: "best_value_flower",
-    label: "Best Value Flower",
-    filter: isFlowerRegular,
-    minThc: 18,
-    metric: "mg_per_dollar",
-  },
-  {
-    // Fix 3: removed minThc:20, widened weightRange to catch 3.5g with rounding variance
     key: "cheapest_eighth",
-    label: "Cheapest 8th",
+    label: "Cheapest Eighth",
     filter: isFlowerRegular,
     weightRange: [3.0, 4.2],
     metric: "lowest_price",
   },
   {
-    key: "shake",
-    label: "Shake",
-    filter: isShake,
-    metric: "mg_per_dollar",
-  },
-  {
-    key: "prerolls",
-    label: "Pre-Rolls",
-    filter: isPrerollSingle,
-    metric: "mg_per_dollar",
-  },
-  {
     key: "vape_cart",
-    label: "Vape Cart",
+    label: "1g Cart",
     filter: isVapeCart,
     metric: "mg_per_dollar",
   },
   {
-    key: "vape_disposable",
-    label: "Disposable Vape",
-    filter: isVapeDisposable,
-    metric: "mg_per_dollar",
-  },
-  {
-    key: "concentrates",
-    label: "Concentrates",
-    filter: isConcentrateOther,
-    metric: "mg_per_dollar",
-  },
-  {
-    key: "rso",
-    label: "RSO",
-    filter: isRso,
-    metric: "mg_per_dollar",
-  },
-  {
     key: "edibles",
-    label: "Edibles",
+    label: "100mg Edible",
     filter: isEdible,
     metric: "mg_per_dollar",
   },
   {
-    key: "tinctures",
-    label: "Tinctures",
-    filter: isTincture,
+    key: "concentrates",
+    label: "1g Live Resin",
+    filter: isConcentrateOther,
+    metric: "mg_per_dollar",
+  },
+  {
+    key: "prerolls",
+    label: "Single Pre-Roll",
+    filter: isPrerollSingle,
+    metric: "mg_per_dollar",
+  },
+  {
+    key: "infused_preroll",
+    label: "Infused Pre-Roll",
+    filter: isInfusedPreroll,
+    metric: "mg_per_dollar",
+  },
+  {
+    key: "vape_disposable",
+    label: "1g Disposable",
+    filter: isVapeDisposable,
     metric: "mg_per_dollar",
   },
 ];

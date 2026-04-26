@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Daily Weed Newspaper · Bottom CTA</title>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Space+Mono:wght@400;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet" />
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<style>
+  :root{
+    --newsprint:#f4f0e4;
+    --ink:#1a1008;
+    --accent:#2d6a4f;
+    --bud:#34a529;
+    --aged:#f0e9d9;
+    --muted:#6b5e45;
+    --ticker-red:#d62828;
+    --deep-forest:#13240f;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{
+    background:#2a2520;
+    color:var(--ink);
+    font-family:'Source Serif 4',Georgia,serif;
+    font-size:16px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ARTBOARD INNER STYLES */
+  .ab{
+    background:var(--newsprint);
+    width:390px;
+    font-family:'Source Serif 4',Georgia,serif;
+    color:var(--ink);
+    position:relative;
+  }
+  .ab::after{
+    content:'';position:absolute;inset:0;
+    pointer-events:none;opacity:.22;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    mix-blend-mode:multiply;
+  }
+
+  /* SECTION HEAD (kicker block above each major block) */
+  .sec-head{
+    position:relative;
+    border-bottom:3px double var(--ink);
+    padding:14px 14px 10px;
+  }
+  .sec-head .kick{
+    font-family:'Space Mono',monospace;
+    font-size:9px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--muted);
+    margin-bottom:4px;display:flex;align-items:center;gap:6px;
+  }
+  .sec-head .kick .tag{color:var(--accent);font-weight:700}
+  .sec-head h2{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-size:24px;line-height:1.05;
+    letter-spacing:-0.01em;
+    margin:0 0 4px;
+  }
+  .sec-head .deck{
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-size:12.5px;
+    color:var(--muted);
+    line-height:1.4;
+  }
+
+  /* Letterman list (Version A) */
+  .lett-byline{
+    border-top:1px solid var(--aged);
+    border-bottom:1px solid var(--aged);
+    padding:6px 14px;
+    font-family:'Space Mono',monospace;
+    font-size:9.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--muted);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .lett-byline .ed{color:var(--ink);font-weight:700}
+
+  .lett{
+    list-style:none;
+    counter-reset:lett 11;
+  }
+  .lett li{
+    counter-increment:lett -1;
+    display:grid;
+    grid-template-columns:42px 1fr;
+    gap:10px;
+    padding:13px 14px 12px;
+    border-bottom:1px solid var(--aged);
+    align-items:start;
+  }
+  .lett li:first-child{
+    background:var(--aged);
+    border-bottom:2px solid var(--ink);
+    padding:16px 14px;
+  }
+  .lett li:first-child .num{color:var(--accent)}
+  .lett li:first-child .cat{color:var(--ink)}
+  .lett li:first-child .winner{font-size:15px}
+
+  .lett .num{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-size:36px;
+    line-height:.85;
+    color:var(--ink);
+    text-align:right;
+    letter-spacing:-0.04em;
+    font-variant-numeric:tabular-nums;
+  }
+  .lett .num::before{
+    content:'№';
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-weight:400;
+    font-size:11px;
+    color:var(--muted);
+    display:block;
+    line-height:1;
+    margin-bottom:1px;
+    margin-right:1px;
+  }
+
+  .lett .body .cat{
+    display:inline-block;
+    font-family:'Space Mono',monospace;
+    font-size:8.5px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--accent);
+    font-weight:700;
+    margin-bottom:3px;
+  }
+  .lett .body .winner{
+    font-family:'Playfair Display',serif;
+    font-weight:700;
+    font-size:14px;
+    line-height:1.2;
+    color:var(--ink);
+    margin-bottom:1px;
+  }
+  .lett .body .meta{
+    font-family:'Space Mono',monospace;
+    font-size:9.5px;
+    color:var(--muted);
+    margin-bottom:5px;
+    line-height:1.4;
+  }
+  .lett .body .meta .price{color:var(--accent);font-weight:700}
+  .lett .body .meta .dot{margin:0 5px;opacity:.5}
+  .lett .body .quip{
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-size:12.5px;
+    line-height:1.45;
+    color:var(--ink);
+    text-wrap:pretty;
+  }
+  .lett .body .quip::before{
+    content:'\201C';
+    font-family:'Playfair Display',serif;
+    font-style:normal;
+    font-weight:900;
+    font-size:18px;
+    color:var(--accent);
+    margin-right:2px;
+    vertical-align:-2px;
+  }
+  .lett .body .quip::after{
+    content:'\201D';
+    font-family:'Playfair Display',serif;
+    font-style:normal;
+    font-weight:900;
+    font-size:18px;
+    color:var(--accent);
+    margin-left:1px;
+    vertical-align:-2px;
+  }
+
+  /* TABLE BLOCK */
+  .table-head{
+    padding:14px 14px 8px;
+    border-top:3px double var(--ink);
+    display:flex;justify-content:space-between;align-items:flex-end;gap:8px;
+  }
+  .table-head .left .kick{
+    font-family:'Space Mono',monospace;
+    font-size:9px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--muted);
+    margin-bottom:2px;
+  }
+  .table-head .left h3{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-size:18px;
+    line-height:1;
+    margin:0;
+  }
+  .table-head .right{
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--muted);
+    text-align:right;
+    line-height:1.4;
+  }
+  .table-head .right b{color:var(--ink);font-weight:700}
+
+  .filter-strip{
+    display:flex;
+    gap:6px;
+    padding:8px 14px 4px;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .filter-strip::-webkit-scrollbar{display:none}
+  .filter-strip .chip{
+    flex:0 0 auto;
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    border:1px solid var(--ink);
+    padding:4px 9px;
+    background:var(--newsprint);
+    color:var(--ink);
+    cursor:pointer;
+    letter-spacing:.04em;
+    white-space:nowrap;
+  }
+  .filter-strip .chip.active{background:var(--ink);color:var(--newsprint)}
+  .filter-strip .chip.sale{background:var(--bud);color:#fff;border-color:var(--bud)}
+
+  .price-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12px;
+  }
+  .price-table thead th{
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink);
+    border-top:2px solid var(--ink);
+    border-bottom:2px solid var(--ink);
+    padding:7px 6px;
+    text-align:left;
+    background:var(--newsprint);
+    white-space:nowrap;
+  }
+  .price-table thead th.r{text-align:right}
+  .price-table thead th .arr{
+    color:var(--accent);font-weight:700;margin-left:3px;
+  }
+  .price-table thead th.gated{
+    color:var(--muted);
+    cursor:default;
+  }
+  .price-table thead th.gated::after{
+    content:' \1F512';
+    font-size:8px;
+    opacity:.6;
+  }
+
+  .gate-row td{
+    padding:6px 8px 7px;
+    background:#faf6e8;
+    border-bottom:2px solid var(--ink);
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-size:11.5px;
+    color:var(--muted);
+    text-align:center;
+    line-height:1.3;
+  }
+  .gate-row td .arrow{
+    font-family:'Space Mono',monospace;
+    font-style:normal;
+    color:var(--accent);
+    font-weight:700;
+    margin:0 4px;
+  }
+  .gate-row td a{
+    color:var(--accent);
+    text-decoration:underline;
+    text-decoration-thickness:1px;
+    text-underline-offset:2px;
+    font-style:normal;
+    font-family:'Space Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    font-weight:700;
+  }
+
+  .price-table tbody td{
+    padding:9px 6px;
+    border-bottom:1px solid var(--aged);
+    vertical-align:top;
+    font-family:'Source Serif 4',serif;
+    font-size:12px;
+    line-height:1.35;
+  }
+  .price-table tbody tr.sale td{background:#eef5eb}
+  .price-table tbody td.r{text-align:right;white-space:nowrap}
+
+  .price-table .pname{
+    font-family:'Playfair Display',serif;
+    font-weight:700;
+    font-size:13px;
+    color:var(--ink);
+    line-height:1.2;
+  }
+  .price-table .pmeta{
+    display:block;
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    color:var(--muted);
+    margin-top:2px;
+    letter-spacing:.02em;
+  }
+  .price-table .pdisp{
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    color:var(--ink);
+  }
+  .price-table .pdisp .city{color:var(--muted);display:block;font-size:8.5px;margin-top:1px;letter-spacing:.04em;text-transform:uppercase}
+  .price-table .price{
+    font-family:'Space Mono',monospace;
+    font-weight:700;
+    font-size:13px;
+    color:var(--accent);
+  }
+  .price-table .orig{
+    display:block;
+    font-family:'Space Mono',monospace;
+    font-size:9.5px;
+    color:var(--muted);
+    text-decoration:line-through;
+    margin-top:1px;
+  }
+  .price-table .mgd{
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    font-weight:700;
+  }
+  .price-table .mgd.gated{
+    color:var(--muted);
+    opacity:.45;
+    filter:blur(0.6px);
+    user-select:none;
+  }
+  .price-table .salepill{
+    display:inline-block;
+    background:var(--bud);
+    color:#fff;
+    font-family:'Space Mono',monospace;
+    font-size:8.5px;
+    font-weight:700;
+    padding:1px 4px;
+    margin-top:3px;
+    letter-spacing:.05em;
+  }
+  .pager{
+    display:flex;justify-content:center;align-items:center;gap:6px;
+    padding:14px 14px 18px;
+    font-family:'Space Mono',monospace;
+    font-size:10.5px;
+    color:var(--muted);
+  }
+  .pager .pg{
+    border:1px solid var(--ink);
+    background:var(--newsprint);
+    padding:5px 10px;
+    cursor:pointer;
+    color:var(--ink);
+  }
+  .pager .pg.active{background:var(--ink);color:var(--newsprint)}
+  .pager .ct{margin:0 6px}
+
+  /* ─── VERSION B specific ─────────────────────────────────── */
+  .b-leaderboard{
+    padding:0;
+    border-bottom:3px double var(--ink);
+  }
+  .b-lb-strip{
+    display:flex;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scroll-snap-type:x mandatory;
+    scrollbar-width:none;
+    border-bottom:1px solid var(--ink);
+    background:var(--aged);
+  }
+  .b-lb-strip::-webkit-scrollbar{display:none}
+  .b-lb-card{
+    flex:0 0 78%;
+    scroll-snap-align:start;
+    padding:12px 14px 14px;
+    border-right:1px solid var(--ink);
+    background:var(--newsprint);
+    position:relative;
+  }
+  .b-lb-card.lead{background:var(--ink);color:var(--newsprint);padding-top:14px}
+  .b-lb-card.lead .b-lb-rank{color:var(--bud);margin-bottom:10px}
+  .b-lb-card.lead .b-lb-cat{color:#d4af37;margin-top:2px}
+  .b-lb-card.lead .b-lb-name,
+  .b-lb-card.lead .b-lb-quip{color:var(--newsprint)}
+  .b-lb-card.lead .b-lb-meta{color:#d8d2c0}
+  .b-lb-card.lead .b-lb-meta .price{color:var(--bud)}
+
+  .b-lb-rank{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-size:11px;
+    color:var(--muted);
+    letter-spacing:.06em;
+    margin-bottom:4px;
+    display:flex;align-items:baseline;gap:6px;
+  }
+  .b-lb-rank .big{
+    font-size:28px;
+    line-height:.8;
+    color:var(--accent);
+    font-variant-numeric:tabular-nums;
+  }
+  .b-lb-cat{
+    font-family:'Space Mono',monospace;
+    font-size:8.5px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--accent);
+    font-weight:700;
+    margin-bottom:3px;
+  }
+  .b-lb-name{
+    font-family:'Playfair Display',serif;
+    font-weight:700;
+    font-size:14px;
+    line-height:1.2;
+    margin-bottom:3px;
+  }
+  .b-lb-meta{
+    font-family:'Space Mono',monospace;
+    font-size:9.5px;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .b-lb-meta .price{color:var(--accent);font-weight:700}
+  .b-lb-meta .sep{margin:0 5px;opacity:.5}
+  .b-lb-quip{
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-size:12px;
+    line-height:1.4;
+    color:var(--ink);
+    text-wrap:pretty;
+  }
+  .b-lb-counter{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:6px 14px;
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--muted);
+    background:var(--newsprint);
+  }
+  .b-lb-counter .dots{display:flex;gap:4px}
+  .b-lb-counter .dot{
+    width:6px;height:6px;border:1px solid var(--ink);
+  }
+  .b-lb-counter .dot.on{background:var(--ink)}
+
+  /* split bottom rail in version B */
+  .b-rail{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    border-bottom:1px solid var(--ink);
+  }
+  .b-rail > div{
+    padding:10px 12px;
+    border-right:1px solid var(--ink);
+  }
+  .b-rail > div:last-child{border-right:none;background:var(--aged)}
+  .b-rail .label{
+    font-family:'Space Mono',monospace;
+    font-size:8.5px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:3px;
+  }
+  .b-rail .val{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-size:18px;
+    color:var(--ink);
+    line-height:1;
+  }
+  .b-rail .val .small{
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    color:var(--muted);
+    font-weight:400;
+    margin-left:4px;
+  }
+  .b-rail .sub{
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-size:11px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+
+  /* ─── BOTTOM CTA ──────────────────────────────────────── */
+  .cta-wrap{
+    border-top:3px double var(--ink);
+    background:var(--newsprint);
+    padding:0;
+  }
+  .cta-mast{
+    text-align:center;
+    padding:22px 18px 0;
+    position:relative;
+  }
+  .cta-mast .stamp{
+    display:inline-block;
+    border:1px solid var(--ink);
+    padding:3px 10px;
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--ink);
+    margin-bottom:14px;
+    transform:rotate(-1.5deg);
+    background:var(--aged);
+  }
+  .cta-mast .stamp .red{color:var(--ticker-red);font-weight:700}
+  .cta-mast h2{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-style:italic;
+    font-size:30px;
+    line-height:1.02;
+    letter-spacing:-0.015em;
+    color:var(--ink);
+    margin:0 0 8px;
+    text-wrap:balance;
+  }
+  .cta-mast h2 .frak{
+    font-family:'UnifrakturMaguntia',cursive;
+    font-style:normal;
+    font-weight:400;
+    color:var(--accent);
+    font-size:1.1em;
+    letter-spacing:0;
+  }
+  .cta-mast .deck{
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.45;
+    margin:0 4px 16px;
+    text-wrap:pretty;
+  }
+
+  .cta-form{
+    margin:0 14px;
+    border-top:1px solid var(--ink);
+    border-bottom:1px solid var(--ink);
+    padding:12px 0;
+    position:relative;
+  }
+  .cta-form::before,
+  .cta-form::after{
+    content:'';
+    position:absolute;left:0;right:0;
+    border-top:1px solid var(--ink);
+  }
+  .cta-form::before{top:-4px}
+  .cta-form::after{bottom:-4px}
+
+  .cta-form label{
+    display:block;
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:6px;
+    padding:0 4px;
+  }
+  .cta-form .row{
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:0;
+    align-items:stretch;
+  }
+  .cta-form input{
+    -webkit-appearance:none;appearance:none;
+    border:1px solid var(--ink);
+    border-right:none;
+    background:#fbf7e8;
+    padding:11px 12px;
+    font-family:'Space Mono',monospace;
+    font-size:13px;
+    color:var(--ink);
+    width:100%;
+    border-radius:0;
+    outline:none;
+  }
+  .cta-form input::placeholder{color:var(--muted);font-style:italic}
+  .cta-form input:focus{background:#fff}
+  .cta-form button{
+    -webkit-appearance:none;appearance:none;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:var(--newsprint);
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    padding:0 16px;
+    cursor:pointer;
+    border-radius:0;
+    white-space:nowrap;
+  }
+  .cta-form button:hover{background:var(--accent);border-color:var(--accent)}
+  .cta-form button .arr{margin-left:4px;color:var(--bud)}
+  .cta-form .promise{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:10px;
+    padding:0 4px;
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .cta-form .promise .check{color:var(--accent);font-weight:700;margin-right:3px}
+
+  /* The 'what you get' broadsheet receipt */
+  .cta-receipt{
+    margin:18px 14px 0;
+    border:1px solid var(--ink);
+    background:var(--aged);
+    padding:14px 14px 12px;
+    position:relative;
+  }
+  .cta-receipt::before{
+    content:'¶';
+    position:absolute;
+    top:-12px;left:14px;
+    background:var(--newsprint);
+    padding:0 6px;
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-style:italic;
+    font-size:18px;
+    color:var(--ink);
+  }
+  .cta-receipt .head{
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:10px;
+    padding-bottom:8px;
+    border-bottom:1px dashed var(--ink);
+  }
+  .cta-receipt dl{
+    display:grid;
+    grid-template-columns:auto 1fr;
+    gap:8px 12px;
+    align-items:baseline;
+  }
+  .cta-receipt dt{
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    font-weight:700;
+    color:var(--accent);
+    letter-spacing:.04em;
+    line-height:1.3;
+  }
+  .cta-receipt dd{
+    font-family:'Source Serif 4',serif;
+    font-size:12px;
+    line-height:1.35;
+    color:var(--ink);
+    text-wrap:pretty;
+  }
+  .cta-receipt dd em{
+    color:var(--muted);
+    font-size:10.5px;
+    font-family:'Space Mono',monospace;
+    font-style:normal;
+    letter-spacing:.04em;
+    display:block;
+    margin-top:1px;
+  }
+
+  /* Footer-ish proof line */
+  .cta-proof{
+    margin:14px 14px 0;
+    padding:10px 0 4px;
+    border-top:1px solid var(--aged);
+    text-align:center;
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-size:11.5px;
+    line-height:1.45;
+    color:var(--muted);
+    text-wrap:pretty;
+  }
+  .cta-proof b{
+    font-style:normal;
+    color:var(--ink);
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.04em;
+  }
+
+  /* Fine print */
+  .cta-fineprint{
+    padding:14px 18px 22px;
+    text-align:center;
+    font-family:'Space Mono',monospace;
+    font-size:8.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--muted);
+    line-height:1.6;
+  }
+  .cta-fineprint .sep{margin:0 6px;opacity:.5}
+  .cta-fineprint a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+
+  /* mini sparkline-as-text for B */
+  .b-spark{
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    color:var(--accent);
+    letter-spacing:1px;
+    margin-top:3px;
+  }
+
+  /* table head variant in B — adds quick category jump */
+  .b-table-head{
+    padding:12px 14px 4px;
+    border-top:0;
+  }
+  .b-table-head h3{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-style:italic;
+    font-size:20px;
+    margin:0 0 2px;
+  }
+  .b-table-head .deck{
+    font-family:'Source Serif 4',serif;
+    font-style:italic;
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.4;
+  }
+
+
+  body{
+    background:#2a2520;
+    min-height:100vh;
+    display:flex;justify-content:center;align-items:flex-start;
+    padding:24px 0;
+  }
+  .frame{
+    width:390px;
+    box-shadow:0 30px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(0,0,0,.3);
+  }
+  @media (max-width:430px){
+    body{padding:0}
+    .frame{box-shadow:none;width:100%}
+    .ab{width:100% !important}
+  }
+</style>
+</head>
+<body>
+
+<script type="text/babel" data-presets="env,react">
+function BottomCTA(){
+  const [email, setEmail] = React.useState("");
+  const [submitted, setSubmitted] = React.useState(false);
+  return (
+    <div className="cta-wrap">
+
+      <div className="cta-mast">
+        <div className="stamp">¶ Free · <span className="red">No paywall</span> · Daily 06:00 PST</div>
+        <h2>The <span className="frak">Top Ten</span><br/>in your inbox.<br/>Before your coffee.</h2>
+        <p className="deck">One email. Ten verdicts. Zero “strategic partnerships.” Unsubscribe in one tap, no guilt trip.</p>
+      </div>
+
+      <form
+        className="cta-form"
+        onSubmit={(e)=>{e.preventDefault(); if(email.trim()) setSubmitted(true);}}
+      >
+        <label htmlFor="cta-email">Subscribe · The Morning Edition</label>
+        <div className="row">
+          <input
+            id="cta-email"
+            type="email"
+            placeholder="you@plug-no-longer-needed.com"
+            value={email}
+            onChange={(e)=>setEmail(e.target.value)}
+            required
+          />
+          <button type="submit">{submitted ? "✓ In" : "Send it"}<span className="arr">{submitted ? "" : " →"}</span></button>
+        </div>
+        <div className="promise">
+          <span><span className="check">✓</span> No spam. Ever.</span>
+          <span><span className="check">✓</span> 1-tap unsub.</span>
+          <span><span className="check">✓</span> No selling lists.</span>
+        </div>
+      </form>
+
+      <div className="cta-receipt">
+        <div className="head">What lands in your inbox</div>
+        <dl>
+          <dt>01.</dt>
+          <dd>The full Top 10 — every category winner, ranked.<em>Same list you just scrolled. Now portable.</em></dd>
+          <dt>02.</dt>
+          <dd>Today's biggest price drops, with the receipts.<em>If a Strip dispensary blinks, you'll know by 6 a.m.</em></dd>
+          <dt>03.</dt>
+          <dd>One Ziggy line. Maybe two if the market is funny.<em>The math, but with attitude.</em></dd>
+        </dl>
+      </div>
+
+      <div className="cta-proof">
+        Joined this morning by <b>1,247</b> Las Vegans who would rather read a paper than scroll a menu.
+      </div>
+
+      <div className="cta-fineprint">
+        Est. April 2026 · Las Vegas, Nev.
+        <span className="sep">·</span>
+        <a href="#">Privacy</a>
+        <span className="sep">·</span>
+        <a href="#">Archive</a>
+      </div>
+
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <div className="frame">
+      <div className="ab"><BottomCTA/></div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <rect width="200" height="200" fill="#f4f0e4"/>
+    <text x="100" y="70" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-weight="900" font-size="20" fill="#1a1008">Top Ten</text>
+    <text x="100" y="92" text-anchor="middle" font-family="monospace" font-size="9" letter-spacing="2" fill="#6b5e45">IN YOUR INBOX</text>
+    <rect x="30" y="118" width="100" height="26" fill="#fbf7e8" stroke="#1a1008"/>
+    <rect x="130" y="118" width="40" height="26" fill="#1a1008"/>
+    <text x="150" y="135" text-anchor="middle" font-family="monospace" font-size="8" font-weight="700" fill="#34a529">→</text>
+  </svg>
+</template>
+<div id="root"></div>
+
+</body>
+</html>

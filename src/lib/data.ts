@@ -100,6 +100,18 @@ export interface DailyWinner {
   product: DailyWinnerProduct | null;
 }
 
+export interface Lucky7Averages {
+  eighth: number | null;
+  cart: number | null;
+  edible: number | null;
+  resin: number | null;
+  preroll: number | null;
+  infused: number | null;
+  disposable: number | null;
+  totalListings: number;
+  lastUpdatedAt: string;
+}
+
 export interface PageData {
   stats: SiteStats;
   categoryWinners: CategoryWinner[];
@@ -108,6 +120,7 @@ export interface PageData {
   avgByCategory: AvgByCategory[];
   stripDeals: DealProduct[];
   dailyBrief: DailyBrief | null;
+  lucky7: Lucky7Averages;
 }
 
 // ─── CATEGORY MAPPINGS ────────────────────────────────────────
@@ -433,19 +446,15 @@ async function getStripDeals(): Promise<DealProduct[]> {
 
 // ─── DAILY WINNERS ───────────────────────────────────────────
 
-// The 10 category keys in display order — always returned as 10 rows,
-// even when daily_winners has no row for a category (empty state).
+// Lucky 7 category keys — always returned in this order, empty state for missing.
 const WINNER_CATEGORY_KEYS = [
-  "best_value_flower",
   "cheapest_eighth",
-  "shake",
-  "prerolls",
   "vape_cart",
-  "vape_disposable",
-  "concentrates",
-  "rso",
   "edibles",
-  "tinctures",
+  "concentrates",
+  "prerolls",
+  "infused_preroll",
+  "vape_disposable",
 ] as const;
 
 async function getDailyWinners(): Promise<DailyWinner[]> {
@@ -518,12 +527,122 @@ async function getDailyWinners(): Promise<DailyWinner[]> {
     });
   }
 
-  // Return all 10 categories in fixed order, empty state for any missing.
+  // Return all 7 categories in fixed order, empty state for any missing.
   return WINNER_CATEGORY_KEYS.map((key) => byKey.get(key) ?? {
     category_key: key,
     metric_display: null,
     product: null,
   });
+}
+
+// ─── LUCKY 7 AVERAGES ─────────────────────────────────────────
+async function getLucky7Averages(): Promise<Lucky7Averages> {
+  const now = new Date().toISOString();
+  const fallback: Lucky7Averages = {
+    eighth: null, cart: null, edible: null, resin: null,
+    preroll: null, infused: null, disposable: null,
+    totalListings: 0, lastUpdatedAt: now,
+  };
+
+  try {
+    // Fetch all in-stock products with price and relevant fields
+    const { data, error } = await supabase
+      .from("products")
+      .select("category, subcategory, name, price, weight_grams, thc_mg_total")
+      .eq("in_stock", true)
+      .not("price", "is", null)
+      .gt("price", 0);
+
+    if (error || !data) return fallback;
+
+    const rows = data as Array<{
+      category: string | null;
+      subcategory: string | null;
+      name: string | null;
+      price: number;
+      weight_grams: number | null;
+      thc_mg_total: number | null;
+    }>;
+
+    const lc = (s: string | null | undefined) => (s ?? "").toLowerCase();
+
+    const avg = (arr: number[]) =>
+      arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length;
+
+    const eighths = rows
+      .filter(r => lc(r.category).includes("flower") && r.weight_grams != null && Number(r.weight_grams) >= 3.0 && Number(r.weight_grams) <= 4.2)
+      .map(r => Number(r.price));
+
+    const carts = rows
+      .filter(r => {
+        const cat = lc(r.category);
+        const n = lc(r.name);
+        if (!cat.includes("vape") && !cat.includes("vapor") && !cat.includes("cartridge")) return false;
+        if (n.includes("disposable") || n.includes("all-in-one") || n.includes("all in one") || n.includes(" aio")) return false;
+        return true;
+      })
+      .map(r => Number(r.price));
+
+    const edibles = rows
+      .filter(r => {
+        const cat = lc(r.category);
+        return cat.includes("edible") || cat.includes("beverage") || cat.includes("gumm") || cat.includes("food");
+      })
+      .map(r => Number(r.price));
+
+    const resins = rows
+      .filter(r => {
+        const cat = lc(r.category);
+        const n = lc(r.name);
+        if (!cat.includes("concentrate") && !cat.includes("extract") && !cat.includes("wax") && !cat.includes("rosin")) return false;
+        return n.includes("live resin") || n.includes("live rosin") || n.includes("rosin");
+      })
+      .map(r => Number(r.price));
+
+    const prerolls = rows
+      .filter(r => {
+        const cat = lc(r.category);
+        const n = lc(r.name);
+        if (!cat.includes("pre-roll") && !cat.includes("preroll") && !cat.includes("pre roll")) return false;
+        if (/\b\d+-?pack\b|\/pk|\d+\s*x\s*\d*\.?\d+g/.test(n) || n.includes(" pack") || n.includes("multi")) return false;
+        if (n.includes("infused") || n.includes("liquid diamond") || n.includes("live resin") || n.includes("kief")) return false;
+        return true;
+      })
+      .map(r => Number(r.price));
+
+    const infused = rows
+      .filter(r => {
+        const cat = lc(r.category);
+        const n = lc(r.name);
+        if (!cat.includes("pre-roll") && !cat.includes("preroll") && !cat.includes("pre roll")) return false;
+        if (/\b\d+-?pack\b|\/pk|\d+\s*x\s*\d*\.?\d+g/.test(n) || n.includes(" pack") || n.includes("multi")) return false;
+        return n.includes("infused") || n.includes("liquid diamond") || n.includes("live resin") || n.includes("kief");
+      })
+      .map(r => Number(r.price));
+
+    const disposables = rows
+      .filter(r => {
+        const cat = lc(r.category);
+        const n = lc(r.name);
+        if (!cat.includes("vape") && !cat.includes("vapor") && !cat.includes("cartridge")) return false;
+        return n.includes("disposable") || n.includes("all-in-one") || n.includes("all in one") || n.includes(" aio");
+      })
+      .map(r => Number(r.price));
+
+    return {
+      eighth:   avg(eighths),
+      cart:     avg(carts),
+      edible:   avg(edibles),
+      resin:    avg(resins),
+      preroll:  avg(prerolls),
+      infused:  avg(infused),
+      disposable: avg(disposables),
+      totalListings: rows.length,
+      lastUpdatedAt: now,
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 // ─── DAILY BRIEF ─────────────────────────────────────────────
@@ -540,7 +659,7 @@ async function getDailyBrief(): Promise<DailyBrief | null> {
 
 // ─── MAIN FETCH ───────────────────────────────────────────────
 export async function getAllPageData(): Promise<PageData> {
-  const [stats, categoryWinners, dailyWinners, topDeals, avgByCategory, stripDeals, dailyBrief] =
+  const [stats, categoryWinners, dailyWinners, topDeals, avgByCategory, stripDeals, dailyBrief, lucky7] =
     await Promise.all([
       getStats(),
       getCategoryWinners(),
@@ -549,7 +668,8 @@ export async function getAllPageData(): Promise<PageData> {
       getAvgByCategory(),
       getStripDeals(),
       getDailyBrief(),
+      getLucky7Averages(),
     ]);
 
-  return { stats, categoryWinners, dailyWinners, topDeals, avgByCategory, stripDeals, dailyBrief };
+  return { stats, categoryWinners, dailyWinners, topDeals, avgByCategory, stripDeals, dailyBrief, lucky7 };
 }
