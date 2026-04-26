@@ -16,11 +16,56 @@ const CAT_LABELS: Record<string, string> = {
 };
 
 const MAX_FREE_FLIPS = 3;
+// Incognito fallback: Eighth (0), Edible (2), Pre-Roll (4) — representative spread
+const INCOGNITO_INDICES = [0, 2, 4];
 
-// Subtle crosshatch gives the card-back a felt/paper texture feel
 const CARD_BACK_PATTERN =
   "repeating-linear-gradient(45deg, rgba(244,240,228,0.055) 0px, rgba(244,240,228,0.055) 1px, transparent 1px, transparent 10px), " +
   "repeating-linear-gradient(-45deg, rgba(244,240,228,0.055) 0px, rgba(244,240,228,0.055) 1px, transparent 1px, transparent 10px)";
+
+// ── Cookie helpers ────────────────────────────────────────────────────────────
+
+/** Vegas local date string — resets the game at midnight PDT/PST. */
+function vegasDate(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+}
+
+function areCookiesAvailable(): boolean {
+  try {
+    document.cookie = "dwn_ck_test=1;max-age=2;path=/;samesite=lax";
+    const ok = document.cookie.includes("dwn_ck_test=1");
+    document.cookie = "dwn_ck_test=;max-age=0;path=/";
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function readPicksCookie(): number[] {
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)dwn_picks=([^;]+)/);
+    if (!match) return [];
+    const parsed = JSON.parse(decodeURIComponent(match[1]));
+    // Stale day → fresh game
+    if (parsed?.date !== vegasDate()) return [];
+    return Array.isArray(parsed?.indices) ? (parsed.indices as number[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePicksCookie(indices: number[]): void {
+  try {
+    const value = encodeURIComponent(
+      JSON.stringify({ date: vegasDate(), indices })
+    );
+    document.cookie = `dwn_picks=${value};max-age=86400;path=/;samesite=lax`;
+  } catch {
+    // ignore — incognito or cookie denied
+  }
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 interface Props {
   winners: DailyWinner[];
@@ -31,10 +76,18 @@ interface Props {
 export default function VerdictCards({ winners, quips, gate }: Props) {
   const stripRef = useRef<HTMLDivElement>(null);
   const [activeCard, setActiveCard] = useState(0);
+
+  // flipped: which card indices are face-up
   const [flipped, setFlipped] = useState<Set<number>>(new Set());
+  // skipAnim: indices that should appear face-up instantly (no transition) —
+  // used for cookie-restored picks and incognito pre-reveals
+  const [skipAnim, setSkipAnim] = useState<Set<number>>(new Set());
+  // cookieMode: unknown until mount effect runs
+  const [cookieMode, setCookieMode] = useState<"unknown" | "normal" | "incognito">("unknown");
+
   const [compareProduct, setCompareProduct] = useState<string | null>(null);
 
-  // Dot-counter observer — watch the perspective wrappers via data-card-idx
+  // Dot-counter observer
   useEffect(() => {
     const strip = stripRef.current;
     if (!strip) return;
@@ -56,15 +109,41 @@ export default function VerdictCards({ winners, quips, gate }: Props) {
     return () => observer.disconnect();
   }, []);
 
+  // Cookie init — runs once on mount for free users
+  useEffect(() => {
+    if (gate.isPro) return;
+
+    if (!areCookiesAvailable()) {
+      // Incognito: silently serve fallback spread, no counter
+      const fallback = new Set(INCOGNITO_INDICES);
+      setSkipAnim(fallback);
+      setFlipped(fallback);
+      setCookieMode("incognito");
+      return;
+    }
+
+    setCookieMode("normal");
+
+    const saved = readPicksCookie();
+    if (saved.length > 0) {
+      const restored = new Set(saved);
+      setSkipAnim(restored); // appear face-up instantly — no flip animation
+      setFlipped(restored);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Pro auto-flip: sequential stagger after mount
   useEffect(() => {
     if (!gate.isPro) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
     winners.forEach((_, i) => {
-      const t = setTimeout(() => {
-        setFlipped((prev) => new Set([...prev, i]));
-      }, i * 150);
-      return () => clearTimeout(t);
+      timers.push(
+        setTimeout(() => {
+          setFlipped((prev) => new Set([...prev, i]));
+        }, i * 150)
+      );
     });
+    return () => timers.forEach(clearTimeout);
   }, [gate.isPro]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goToProPage = useCallback(() => {
@@ -72,12 +151,18 @@ export default function VerdictCards({ winners, quips, gate }: Props) {
   }, []);
 
   const flip = useCallback((i: number) => {
-    setFlipped((prev) => new Set([...prev, i]));
+    setFlipped((prev) => {
+      const next = new Set([...prev, i]);
+      writePicksCookie([...next]);
+      return next;
+    });
   }, []);
 
   const flipsUsed = flipped.size;
   const flipsRemaining = Math.max(0, MAX_FREE_FLIPS - flipsUsed);
   const total = winners.length;
+  // Show the picks counter only for confirmed-normal cookie users with picks left
+  const showCounter = !gate.isPro && cookieMode === "normal" && flipsRemaining > 0;
 
   return (
     <>
@@ -92,11 +177,8 @@ export default function VerdictCards({ winners, quips, gate }: Props) {
           const p = w.product;
           const isLead = i % 2 === 0;
 
-          // A card can be flipped if: not yet flipped AND (pro user OR flips still available)
           const canFlip = !isFlipped && (gate.isPro || flipsUsed < MAX_FREE_FLIPS);
-          // Locked = not flipped AND free user has used all flips
           const isLocked = !isFlipped && !gate.isPro && flipsUsed >= MAX_FREE_FLIPS;
-          // Compare is available on a flipped card that has a product
           const canCompare = isFlipped && !!p?.name;
 
           return (
@@ -105,7 +187,6 @@ export default function VerdictCards({ winners, quips, gate }: Props) {
               data-card-idx={i}
               aria-label={`Card ${i + 1} of ${total}: ${CAT_LABELS[w.category_key] ?? w.category_key}${isFlipped ? " — revealed" : canFlip ? " — tap to flip" : " — Pro only"}`}
               style={{
-                // Replicate .b-lb-card flex/snap sizing on the perspective wrapper
                 flex: "0 0 min(260px, 78vw)",
                 scrollSnapAlign: "start",
                 minHeight: "190px",
@@ -118,13 +199,14 @@ export default function VerdictCards({ winners, quips, gate }: Props) {
                 style={{
                   transformStyle: "preserve-3d",
                   transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-                  transition: "transform 400ms ease",
+                  // Skip animation for cookie-restored / incognito pre-revealed cards
+                  transition: skipAnim.has(i) ? "none" : "transform 400ms ease",
                   position: "relative",
                   minHeight: "190px",
                   height: "100%",
                 }}
               >
-                {/* ── BACK FACE — face-down card ──────────────────── */}
+                {/* ── BACK FACE — face-down card (blind) ──────────── */}
                 <div
                   className={`b-lb-card${isLead ? " lead" : ""}`}
                   style={{
@@ -132,7 +214,6 @@ export default function VerdictCards({ winners, quips, gate }: Props) {
                     WebkitBackfaceVisibility: "hidden",
                     position: "absolute",
                     inset: 0,
-                    // Override card background with deep forest green
                     background: "#13240f",
                     backgroundImage: CARD_BACK_PATTERN,
                     cursor: canFlip ? "pointer" : isLocked ? "pointer" : "default",
@@ -140,11 +221,9 @@ export default function VerdictCards({ winners, quips, gate }: Props) {
                   }}
                   onClick={canFlip ? () => flip(i) : isLocked ? goToProPage : undefined}
                 >
+                  {/* Rank only — category name intentionally omitted (blind pick) */}
                   <div className="b-lb-rank" style={{ color: "rgba(244,240,228,0.38)" }}>
                     {String(i + 1).padStart(2, "0")}
-                  </div>
-                  <div className="b-lb-cat" style={{ color: "rgba(244,240,228,0.72)" }}>
-                    {CAT_LABELS[w.category_key] ?? w.category_key}
                   </div>
 
                   {isLocked ? (
@@ -228,8 +307,8 @@ export default function VerdictCards({ winners, quips, gate }: Props) {
         })}
       </div>
 
-      {/* Picks counter — free users only, shown while picks remain */}
-      {!gate.isPro && flipsRemaining > 0 && (
+      {/* Picks counter — normal cookie mode only, while picks remain */}
+      {showCounter && (
         <div
           style={{
             fontFamily: "Space Mono, monospace",
