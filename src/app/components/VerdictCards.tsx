@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { DailyWinner } from "@/lib/data";
+import { GateProps } from "./NewspaperClient";
 
 const CAT_LABELS: Record<string, string> = {
   cheapest_eighth:  "Cheapest Eighth",
@@ -15,11 +16,11 @@ const CAT_LABELS: Record<string, string> = {
 
 interface Props {
   winners: DailyWinner[];
-  /** One quip per card, in winner order — already resolved from brief or fallback */
   quips: string[];
+  gate: GateProps;
 }
 
-export default function VerdictCards({ winners, quips }: Props) {
+export default function VerdictCards({ winners, quips, gate }: Props) {
   const stripRef = useRef<HTMLDivElement>(null);
   const [activeCard, setActiveCard] = useState(0);
 
@@ -44,6 +45,12 @@ export default function VerdictCards({ winners, quips }: Props) {
     return () => observer.disconnect();
   }, []);
 
+  // Navigate to Page 4 (The Back Page, index 3) via custom event
+  const goToProPage = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("dwn:goto", { detail: 3 }));
+  }, []);
+
+  const revealedSet = new Set(gate.revealedIndices);
   const total = winners.length;
 
   return (
@@ -52,14 +59,39 @@ export default function VerdictCards({ winners, quips }: Props) {
         className="b-lb-strip"
         ref={stripRef}
         role="region"
-        aria-label="Today's verdict cards — swipe to explore"
+        aria-label="Lucky 7 verdict cards — swipe to explore"
       >
         {winners.map((w, i) => {
+          const isRevealed = revealedSet.has(i);
           const p = w.product;
+          const isLead = i % 2 === 0;
+
+          if (!isRevealed) {
+            // ── Locked card ──────────────────────────────────────────────────
+            return (
+              <button
+                key={w.category_key}
+                className={`b-lb-card b-lb-card-locked${isLead ? " lead" : ""}`}
+                data-idx={i}
+                aria-label={`Card ${i + 1} of ${total}: ${CAT_LABELS[w.category_key] ?? w.category_key} — Pro only`}
+                onClick={goToProPage}
+              >
+                <div className="b-lb-rank">{String(i + 1).padStart(2, "0")}</div>
+                <div className="b-lb-cat">
+                  {CAT_LABELS[w.category_key] ?? w.category_key}
+                </div>
+                <div className="b-lb-locked-line">
+                  Pro · Unlock all 7
+                </div>
+              </button>
+            );
+          }
+
+          // ── Revealed card ────────────────────────────────────────────────
           return (
             <div
               key={w.category_key}
-              className={`b-lb-card${i % 2 === 0 ? " lead" : ""}`}
+              className={`b-lb-card${isLead ? " lead" : ""}`}
               data-idx={i}
               aria-label={`Card ${i + 1} of ${total}: ${CAT_LABELS[w.category_key] ?? w.category_key}`}
             >
@@ -102,7 +134,7 @@ export default function VerdictCards({ winners, quips }: Props) {
           {winners.map((_, i) => (
             <span
               key={i}
-              className={`b-lb-dot${i === activeCard ? " active" : ""}`}
+              className={`b-lb-dot${i === activeCard ? " active" : ""}${!revealedSet.has(i) ? " locked" : ""}`}
             />
           ))}
         </div>

@@ -3106,6 +3106,52 @@ body > div > div {
   border-top-color: rgba(255,255,255,.12);
 }
 
+/* Locked card */
+.b-lb-card-locked {
+  /* Reset button defaults */
+  appearance: none;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  /* Layout matches revealed cards */
+  display: flex;
+  flex-direction: column;
+}
+.b-lb-locked-line {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--aged);
+}
+.b-lb-card-locked.lead .b-lb-locked-line {
+  color: rgba(255,255,255,.35);
+  border-top-color: rgba(255,255,255,.1);
+}
+.b-lb-card-locked:hover .b-lb-locked-line,
+.b-lb-card-locked:focus-visible .b-lb-locked-line {
+  color: var(--accent);
+}
+.b-lb-card-locked.lead:hover .b-lb-locked-line,
+.b-lb-card-locked.lead:focus-visible .b-lb-locked-line {
+  color: var(--accent);
+}
+.b-lb-card-locked:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Locked dot indicator */
+.b-lb-dot.locked {
+  opacity: 0.3;
+}
+
 .b-lb-empty {
   font-family: 'Space Mono', monospace;
   font-size: 10px; color: var(--muted);

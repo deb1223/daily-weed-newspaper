@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageData } from "@/lib/data";
+import { GateProps } from "./NewspaperClient";
 import { displayProductSize } from "@/lib/format";
 import AuthLabel from "./AuthLabel";
 import VerdictCards from "./VerdictCards";
@@ -30,7 +31,7 @@ const ZIGGY_LINERS = [
   "i would sell a kidney for a deal this clean. luckily i don't have to.",
 ];
 
-export default function Page1({ data }: { data: PageData }) {
+export default function Page1({ data, gate }: { data: PageData; gate: GateProps }) {
   const { stats, topDeals, dailyWinners, dailyBrief } = data;
   const brief = dailyBrief?.brief_json ?? null;
 
@@ -416,7 +417,7 @@ export default function Page1({ data }: { data: PageData }) {
 
         {/* Verdict leaderboard */}
         <div className="b-leaderboard">
-          <VerdictCards winners={dailyWinners} quips={verdictQuips} />
+          <VerdictCards winners={dailyWinners} quips={verdictQuips} gate={gate} />
 
           {/* Rail: Today's Pulse + Biggest Mover */}
           <div className="b-rail">

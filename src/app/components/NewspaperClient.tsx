@@ -7,7 +7,14 @@ import Page1 from "./Page1";
 import Page2 from "./Page2";
 import Page3 from "./Page3";
 
-const PAGE_LABELS = ["Front Page", "Inside Scoop", "The Closer"];
+export interface GateProps {
+  isPro: boolean;
+  /** 0-based indices of the 7 winner cards revealed to this session */
+  revealedIndices: number[];
+}
+
+const PAGE_LABELS = ["Front Page", "The Sheet", "The Closer", "The Back Page"];
+const PAGE_COUNT = 4;
 
 const variants = {
   initial: (dir: number) => ({
@@ -24,13 +31,19 @@ const variants = {
   }),
 };
 
-export default function NewspaperClient({ data }: { data: PageData }) {
+export default function NewspaperClient({
+  data,
+  gate,
+}: {
+  data: PageData;
+  gate: GateProps;
+}) {
   const [page, setPage] = useState(0);
   const [direction, setDirection] = useState(1);
 
   const goTo = useCallback(
     (newPage: number) => {
-      if (newPage < 0 || newPage > 2) return;
+      if (newPage < 0 || newPage >= PAGE_COUNT) return;
       setDirection(newPage > page ? 1 : -1);
       setPage(newPage);
       window.scrollTo({ top: 0, behavior: "instant" });
@@ -38,6 +51,7 @@ export default function NewspaperClient({ data }: { data: PageData }) {
     [page]
   );
 
+  // Keyboard navigation
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight") goTo(page + 1);
@@ -46,6 +60,13 @@ export default function NewspaperClient({ data }: { data: PageData }) {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [page, goTo]);
+
+  // Custom event — locked cards dispatch dwn:goto to navigate to a page
+  useEffect(() => {
+    const handler = (e: Event) => goTo((e as CustomEvent<number>).detail);
+    window.addEventListener("dwn:goto", handler);
+    return () => window.removeEventListener("dwn:goto", handler);
+  }, [goTo]);
 
   return (
     <>
@@ -61,9 +82,14 @@ export default function NewspaperClient({ data }: { data: PageData }) {
             exit="exit"
             transition={{ duration: 0.75, ease: "easeInOut" }}
           >
-            {page === 0 && <Page1 data={data} />}
+            {page === 0 && <Page1 data={data} gate={gate} />}
             {page === 1 && <Page2 data={data} />}
             {page === 2 && <Page3 data={data} />}
+            {page === 3 && (
+              <div style={{ padding: "48px 24px", textAlign: "center", fontFamily: "Space Mono, monospace", fontSize: "12px", color: "var(--muted)" }}>
+                The Back Page — coming soon
+              </div>
+            )}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -79,7 +105,7 @@ export default function NewspaperClient({ data }: { data: PageData }) {
         </button>
 
         <div className="page-nav-dots">
-          {[0, 1, 2].map((i) => (
+          {Array.from({ length: PAGE_COUNT }, (_, i) => (
             <button
               key={i}
               className={`page-dot${page === i ? " active" : ""}`}
@@ -90,20 +116,20 @@ export default function NewspaperClient({ data }: { data: PageData }) {
         </div>
 
         <span className="page-nav-count font-mono">
-          {page + 1} of 3 — {PAGE_LABELS[page]}
+          {page + 1} of {PAGE_COUNT} — {PAGE_LABELS[page]}
         </span>
 
         <button
           className="page-nav-btn"
           onClick={() => goTo(page + 1)}
-          disabled={page === 2}
+          disabled={page === PAGE_COUNT - 1}
         >
           Next →
         </button>
       </div>
 
       {/* Corner curl — next page trigger */}
-      {page < 2 && (
+      {page < PAGE_COUNT - 1 && (
         <div
           className="corner-curl"
           onClick={() => goTo(page + 1)}
