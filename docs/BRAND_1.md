@@ -66,18 +66,34 @@ NEVER use: Tailwind utility soup — use globals.css semantic class names
 - Forms feel like newspaper subscription cards
 
 ## Page Structure
-**Homepage (/) — 3-page newspaper**
-- Page 1: Front Page (masthead, ticker, stats, 3-col layout, top 5 steals)
-- Page 2: Inside Scoop (Big Mike's Tea, price trend chart, Ziggy's Deeper Cuts)
-- Page 3: The Closer (Tourist Terry's guide, Ziggy's final rating, pro upsell)
+**Homepage (/) — 4-page newspaper**
+- Page 1: Front Page (masthead, ticker, stats row, Lucky 7 verdict cards, newsletter signup)
+- Page 2: The Sheet (Lucky 7 market averages bar chart, Big Mike's Local Tea, Lucky 7 price history line graph, evergreen specials)
+- Page 3: The Closer (Tourist Terry's Strip Guide — North Strip / South Strip / Downtown, Pro member teaser CTA)
+- Page 4: The Back Page (full Pro membership pitch, crossword)
 
 **Page flip:** Framer Motion AnimatePresence, ~800ms easeInOut
-Corner curl CSS element bottom-right. Keyboard ← → support. Dot indicators.
+Corner curl CSS element bottom-right. Keyboard ← → support. Dot indicators updated to 4.
 
-**/prices — Price Intelligence Dashboard**
-- Mini masthead
+**Lucky 7 Categories (used on Page 1 verdicts AND Page 2 averages/history — same 7, same colors):**
+1. Eighth (3.5g flower)
+2. 1g Cart
+3. 100mg Edible
+4. 1g Live Resin
+5. Single Pre-Roll
+6. Infused Pre-Roll
+7. 1g Disposable
+
+**Free vs Pro gate on Lucky 7 verdict cards:**
+- Free users: 3 randomly selected winners revealed, 4 locked with subtle Pro prompt
+- Pro users: all 7 revealed
+- Random 3 seeded server-side per session, stable within session
+- Winners computed daily at 6am via /api/compute-winners cron
+
+**/prices — Price Intelligence Dashboard (redirects to /#sheet)**
+- Embedded inline on Page 1 as "The Sheet" section
 - Ziggy's Pick of the Moment banner (top deal right now)
-- Search + filter table (3,617 products)
+- Search + filter table (18,000+ products)
 - Compare Prices modal per product row (free: top 3 + blur + upsell)
 - Pagination at 50 rows
 

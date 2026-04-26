@@ -1,7 +1,8 @@
 # Daily Weed Newspaper — Build Status & Roadmap
 
-## Current Status (as of April 20, 2026)
+## Current Status (as of April 25, 2026)
 Site is LIVE at dailyweednewspaper.com — Stripe live mode, Auth gating Pro features end-to-end.
+Newspaper expanded to **4 pages**. Lucky 7 replaces Top 10 on Page 1. Page 2 fully rebuilt per design handoff.
 
 ---
 
@@ -13,9 +14,9 @@ Site is LIVE at dailyweednewspaper.com — Stripe live mode, Auth gating Pro fea
 - Custom domain dailyweednewspaper.com connected
 - Supabase connection working (force-dynamic, server component)
 - Live data: 3,617 products, 16 dispensaries, 1,350 on sale
-- Homepage: 3-page newspaper with Framer Motion page flip
+- Homepage: 3-page newspaper with Framer Motion page flip (expanded to 4 pages in Session 5)
 - Page 1: masthead, ticker, stats row, 3-col layout, Top 5 Steals, category winners
-- Page 2: Big Mike's Tea, Recharts avg price by category, Ziggy's Deeper Cuts
+- Page 2: Big Mike's Tea, Recharts avg price by category, Ziggy's Deeper Cuts (rebuilt in Session 5)
 - Page 3: Tourist Terry's Strip Guide, Ziggy's Final Rating, pro upsell
 - /prices: search + filter table, Compare Prices modal (free: top 3 + blur + upsell)
 - Keyboard ← → navigation on newspaper pages
@@ -75,6 +76,28 @@ Site is LIVE at dailyweednewspaper.com — Stripe live mode, Auth gating Pro fea
 - Weight extraction fallback for Dutchie (measurements.netWeight.values[0])
 - THC extraction fallback for Dutchie (THCContent.range[0])
 - 3,426 clean live products across 16 dispensaries
+
+### Session 5 (April 25)
+- **4-page newspaper** — site expanded from 3 pages to 4; nav dots, keyboard nav, and corner curl all updated
+- **Lucky 7 replaces Top 10** on Page 1 verdict cards — 7 categories, 7 colors, same data on Page 1 and Page 2
+  - Categories: Cheapest Eighth, 1g Cart, 100mg Edible, 1g Live Resin, Single Pre-Roll, Infused Pre-Roll, 1g Disposable
+  - `infused_preroll` is a new compute-winners category (infused/liquid diamond/live resin/kief pre-rolls)
+  - Removed: best_value_flower, shake, rso, tinctures
+- **compute-winners** chained to end of scrape script — winners always computed on fresh data, no separate cron
+- **Page 2 — The Sheet** fully rebuilt per design handoff:
+  - § Lucky 7 Market Averages — proportional bar chart, live avg prices from DB, 7-color category palette
+  - § Big Mike's Local Tea — 3-column editorial, dropcaps, justified body, column rules
+  - § Lucky 7 Price History — Day-1 SVG chart (ghost trails, one dot per category, TODAY guide, "⤳ LINES BUILD HERE")
+  - Folio strip (PG. 2 · The Sheet), double-rule section dividers, page tail
+- **Lucky7Averages** data type + `getLucky7Averages()` query added to data.ts (parallel fetch in getAllPageData)
+- **`--cat-*` palette** added to globals.css (7 newspaper-native colors, all readable on newsprint)
+- **Bottom CTA** replaced old pricing-tier upsell section with newspaper-style Morning Edition signup card
+  - Stamp badge, Playfair + UnifrakturMaguntia headline, triple-rule form, receipt box, proof line
+  - POSTs to /api/subscribe tier=free; button flips to "✓ In" without replacing form
+- **/prices redirect** → /#sheet (The Sheet embedded inline on Page 1)
+- **getDailyWinners two-query fix** — bypasses missing FK on daily_winners.product_id (PostgREST PGRST200 workaround)
+- **daily_stats table** created and chained to scraper (pending: confirm migration applied)
+- **evergreen_specials table** created and seeded (pending: confirm migration applied)
 
 ### Session 4 (April 19-20)
 - Stripe live mode fully operational
