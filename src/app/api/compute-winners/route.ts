@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { revalidatePath } from "next/cache";
 import { run } from "../../../../scripts/compute-winners-logic";
 
 function getSupabase() {
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest) {
   }
   try {
     const result = await run(getSupabase());
+    revalidatePath("/");
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -46,6 +48,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const result = await run(getSupabase());
+    revalidatePath("/");
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

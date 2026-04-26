@@ -463,10 +463,14 @@ async function getDailyWinners(): Promise<DailyWinner[]> {
   // Step 1: fetch winner rows for today.
   // NOTE: daily_winners.product_id has no FK constraint yet, so PostgREST cannot
   // do an implicit join. We use two explicit queries instead.
-  const { data: winnerRows } = await supabase
+  const { data: winnerRows, error: winnerError } = await supabase
     .from("daily_winners")
     .select("category_key, metric_display, product_id")
     .eq("date", today);
+
+  console.log("[getDailyWinners] today:", today);
+  console.log("[getDailyWinners] winnerRows:", JSON.stringify(winnerRows));
+  console.log("[getDailyWinners] error:", winnerError ? JSON.stringify(winnerError) : "none");
 
   if (!winnerRows || winnerRows.length === 0) {
     return WINNER_CATEGORY_KEYS.map((key) => ({

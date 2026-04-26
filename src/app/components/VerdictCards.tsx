@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { DailyWinner } from "@/lib/data";
 import { GateProps } from "./NewspaperClient";
+import CompareModal from "./CompareModal";
 
 const CAT_LABELS: Record<string, string> = {
   cheapest_eighth:  "Cheapest Eighth",
@@ -23,6 +24,7 @@ interface Props {
 export default function VerdictCards({ winners, quips, gate }: Props) {
   const stripRef = useRef<HTMLDivElement>(null);
   const [activeCard, setActiveCard] = useState(0);
+  const [compareProduct, setCompareProduct] = useState<string | null>(null);
 
   useEffect(() => {
     const strip = stripRef.current;
@@ -88,12 +90,15 @@ export default function VerdictCards({ winners, quips, gate }: Props) {
           }
 
           // ── Revealed card ────────────────────────────────────────────────
+          const canCompare = !!p?.name;
           return (
             <div
               key={w.category_key}
               className={`b-lb-card${isLead ? " lead" : ""}`}
               data-idx={i}
-              aria-label={`Card ${i + 1} of ${total}: ${CAT_LABELS[w.category_key] ?? w.category_key}`}
+              aria-label={`Card ${i + 1} of ${total}: ${CAT_LABELS[w.category_key] ?? w.category_key}${canCompare ? " — tap to compare prices" : ""}`}
+              onClick={canCompare ? () => setCompareProduct(p!.name) : undefined}
+              style={canCompare ? { cursor: "pointer" } : undefined}
             >
               <div className="b-lb-rank">{String(i + 1).padStart(2, "0")}</div>
               <div className="b-lb-cat">
@@ -109,7 +114,9 @@ export default function VerdictCards({ winners, quips, gate }: Props) {
                       <span className="b-lb-metric">{w.metric_display}</span>
                     )}
                     {p.dispensary_name && (
-                      <span className="b-lb-disp">{p.dispensary_name}</span>
+                      <span className="b-lb-disp" style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: "2px" }}>
+                        {p.dispensary_name}
+                      </span>
                     )}
                   </div>
                   <div className="b-lb-quip">
@@ -125,6 +132,14 @@ export default function VerdictCards({ winners, quips, gate }: Props) {
           );
         })}
       </div>
+
+      {compareProduct && (
+        <CompareModal
+          productName={compareProduct}
+          isProUser={gate.isPro}
+          onClose={() => setCompareProduct(null)}
+        />
+      )}
 
       <div className="b-lb-counter" aria-live="polite" aria-atomic="true">
         <span className="b-lb-counter-label">
