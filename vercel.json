@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/scrape-big-mike",
+      "schedule": "0 14 * * *"
+    },
+    {
       "path": "/api/generate-brief",
       "schedule": "0 15 * * *"
     },

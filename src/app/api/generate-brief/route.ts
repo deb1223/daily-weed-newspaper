@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 import { Resend } from "resend";
 
 // Required Supabase table (create once in dashboard):
@@ -99,6 +104,26 @@ export async function GET(req: NextRequest) {
     .select("date")
     .eq("date", today)
     .single();
+
+  // Fetch Big Mike's top deals (non-blocking — empty is fine)
+  const { data: bigMikeDeals } = await supabase
+    .from("promotions")
+    .select("dispensary_name,deal_headline,deal_type,deal_price,verified_savings,confidence,deal_json")
+    .eq("active_date", today)
+    .eq("is_active", true)
+    .order("confidence", { ascending: true }) // "estimated" > "verified" alphabetically; flip in app
+    .order("verified_savings", { ascending: false })
+    .limit(5)
+    .then((res) => {
+      // Sort: verified first, then by savings
+      if (res.data) {
+        res.data.sort((a, b) => {
+          if (a.confidence !== b.confidence) return a.confidence === "verified" ? -1 : 1;
+          return (b.verified_savings ?? 0) - (a.verified_savings ?? 0);
+        });
+      }
+      return res;
+    });
 
   if (existing) {
     return NextResponse.json({ message: "Brief already generated for today", date: today });
@@ -202,6 +227,12 @@ export async function GET(req: NextRequest) {
     };
   }).filter((p) => p.discountPct > 0).slice(0, 4);
 
+  const bigMikeContext = bigMikeDeals && bigMikeDeals.length > 0
+    ? `\nBIG MIKE'S VERIFIED DEALS (from deals page scraper — use for bigMikeTea):\n${bigMikeDeals.map((d, i) =>
+        `${i + 1}. [${d.confidence?.toUpperCase()}] ${d.dispensary_name} — ${d.deal_headline} | $${(d.verified_savings ?? 0).toFixed(2)} savings`
+      ).join("\n")}`
+    : "\nBIG MIKE'S DEALS: none verified today — use market data for bigMikeTea";
+
   const dataContext = buildDataContext({
     topDeals,
     categoryWinners: (winnersData ?? []).slice(0, 5).map((w: any) => ({
@@ -231,6 +262,7 @@ export async function GET(req: NextRequest) {
 
 Market data:
 ${dataContext}
+${bigMikeContext}
 
 Return ONLY a valid JSON object with exactly these fields (no markdown, no code blocks, raw JSON only):
 {
