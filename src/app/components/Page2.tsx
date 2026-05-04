@@ -101,7 +101,7 @@ function Lucky7({ avgs }: { avgs: Lucky7Averages }) {
   );
 }
 
-// ── Section 2 — Big Mike's Local Tea ──────────────────────────────────────────
+// ── Section 2 — Big Mike's Bundles & BOGOs ────────────────────────────────────
 function LocalTea() {
   const filed = new Date().toLocaleDateString("en-US", {
     month: "short", day: "numeric",
@@ -110,9 +110,9 @@ function LocalTea() {
   return (
     <section className="p2-section">
       <div className="p2-kicker">
-        <span className="p2-kicker-mark">☕</span>
-        BIG MIKE&apos;S LOCAL TEA
-        <span className="p2-kicker-tail">— PG. 2 · OVERHEARD, CONFIRMED, PRINTED —</span>
+        <span className="p2-kicker-mark">📦</span>
+        BIG MIKE&apos;S BUNDLES &amp; BOGOs
+        <span className="p2-kicker-tail">— if it doesn&apos;t beat buying one, Big Mike didn&apos;t post it —</span>
       </div>
 
       <div className="p2-tea-head">

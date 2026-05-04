@@ -74,7 +74,7 @@ export default function MobileChrome({ editionNum, shortDate }: Props) {
           <dt><Link href="#">The Closer</Link></dt><dd>03</dd>
           <dt><Link href="#">Market Data</Link></dt><dd>04</dd>
           <dt><Link href="#">Ziggy&apos;s Column</Link></dt><dd>05</dd>
-          <dt><Link href="#">Big Mike&apos;s Tea</Link></dt><dd>02</dd>
+          <dt><Link href="#">Big Mike&apos;s Bundles &amp; BOGOs</Link></dt><dd>02</dd>
           <dt><Link href="#">Tourist Terry</Link></dt><dd>03</dd>
         </dl>
 

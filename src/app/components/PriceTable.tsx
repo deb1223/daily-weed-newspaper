@@ -109,7 +109,7 @@ const CAT_MAP: Record<string, string[]> = {
   Flower:       ["Flower", "flower"],
   "Pre-Rolls":  ["Pre-Rolls", "pre-roll"],
   Edibles:      ["Edible", "Edibles", "edible"],
-  Vape:         ["Vape", "vape", "Vaporizers"],
+  Vape:         ["Vape", "vape", "Vaporizers", "Vape Carts 510", "Disposables", "Specialty Pods"],
   Concentrates: ["Concentrate", "Concentrates", "extract"],
   Tinctures:    ["Tincture", "Oral", "oral"],
   Accessories:  ["Accessories", "Accessory", "CBD"],
@@ -407,8 +407,8 @@ function PriceTableInner({ embedded }: { embedded?: boolean }) {
           q = q.order("thc_percentage", { ascending: false, nullsFirst: false });
           break;
         case "discount":
-          q = q.order("on_sale", { ascending: false });
-          q = q.order("original_price", { ascending: false, nullsFirst: false });
+          q = q.not("discount_pct", "is", null);
+          q = q.order("discount_pct", { ascending: sortDir === "asc", nullsFirst: false });
           break;
         case "size":
           q = q.order("weight_grams", { ascending: false, nullsFirst: false });
@@ -423,7 +423,8 @@ function PriceTableInner({ embedded }: { embedded?: boolean }) {
 
       if (!cancelled) {
         if (!error) {
-          const rows = (data ?? []) as Product[];
+          let rows = (data ?? []) as Product[];
+
           setProducts(rows);
           setTotalCount(count ?? 0);
         }

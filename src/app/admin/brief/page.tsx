@@ -5,7 +5,7 @@ interface BriefJson {
   intro: string;
   dealCommentary: { productId: string; quip: string }[];
   savageCorner: string;
-  bigMikeTea: string[];
+  bigMikeBundlesAndBogos?: string[];
   touristTerry: string;
   marketRating: number;
   ratingQuote: string;
@@ -99,13 +99,16 @@ export default async function AdminBriefPage({
             <p style={{ fontFamily: "Georgia, serif", fontSize: "14px", lineHeight: 1.7, fontStyle: "italic", margin: 0 }}>&ldquo;{brief.brief_json.savageCorner}&rdquo;</p>
           </Section>
 
-          <Section label="Big Mike's Tea (3 items)">
-            <ol style={{ margin: 0, paddingLeft: "20px" }}>
-              {brief.brief_json.bigMikeTea.map((t, i) => (
-                <li key={i} style={{ fontFamily: "Georgia, serif", fontSize: "14px", lineHeight: 1.7, marginBottom: "8px" }}>{t}</li>
-              ))}
-            </ol>
-          </Section>
+          {brief.brief_json.bigMikeBundlesAndBogos && brief.brief_json.bigMikeBundlesAndBogos.length > 0 && (
+            <Section label="Big Mike's Bundles & BOGOs">
+              <p style={{ fontFamily: "Georgia, serif", fontSize: "12px", color: "#888", marginTop: 0, marginBottom: "8px", fontStyle: "italic" }}>if it doesn't beat buying one, Big Mike didn't post it</p>
+              <ol style={{ margin: 0, paddingLeft: "20px" }}>
+                {brief.brief_json.bigMikeBundlesAndBogos.map((t, i) => (
+                  <li key={i} style={{ fontFamily: "Georgia, serif", fontSize: "14px", lineHeight: 1.7, marginBottom: "8px" }}>{t}</li>
+                ))}
+              </ol>
+            </Section>
+          )}
 
           <Section label="Tourist Terry's Tip">
             <p style={{ fontFamily: "Georgia, serif", fontSize: "14px", lineHeight: 1.7, margin: 0 }}>{brief.brief_json.touristTerry}</p>

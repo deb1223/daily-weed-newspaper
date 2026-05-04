@@ -450,6 +450,65 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
   )
 }
 
+function normalizeCategory(
+  rawCategory: string,
+  subcategory: string,
+  name: string
+): string {
+  const cat = rawCategory.toLowerCase().trim();
+  const sub = subcategory.toLowerCase().trim();
+  const nm = name.toLowerCase().trim();
+
+  // RSO — check before Concentrates
+  if (sub === 'rick simpson oil (rso)' || sub === 'syringes/tankers') return 'RSO';
+  if (cat === 'extract' || cat === 'concentrate' || cat === 'concentrates') {
+    if (nm.includes('rso') || nm.includes('rick simpson')) return 'RSO';
+    return 'Concentrates';
+  }
+
+  // Flower — check Shake & Trim before returning Flower
+  if (cat === 'flower') {
+    if (sub === 'shake' || sub === 'trim' || sub === 'select grind') return 'Shake & Trim';
+    if (nm.includes(' shake') || nm.includes(' trim')) return 'Shake & Trim';
+    return 'Flower';
+  }
+
+  // Vape
+  if (cat === 'vape' || cat === 'vaporizers' || cat === 'carts') {
+    if (sub === 'disposables' || sub === 'disposable packs') return 'Disposables';
+    if (sub === 'specialty pods') return 'Specialty Pods';
+    if (sub === 'vape kits') return 'Accessories';
+    if (nm.includes('disposable') || nm.includes(' aio') || nm.includes('all-in-one')) return 'Disposables';
+    return 'Vape Carts 510';
+  }
+
+  // Pre-Rolls
+  if (cat === 'pre-roll' || cat === 'preroll' || cat === 'pre-rolls' || cat === 'prerolls') {
+    if (sub === 'infused' || sub === 'infused packs' || sub === 'infused blunts') return 'Infused Pre-Rolls';
+    if (sub === 'pre roll packs') return 'Pre-Roll Packs';
+    return 'Pre-Rolls';
+  }
+
+  // Edibles
+  if (cat === 'edible' || cat === 'edibles') return 'Edibles';
+
+  // Tinctures — fold Oral and CBD sublinguals here
+  if (cat === 'tincture' || cat === 'tinctures' || cat === 'oral') return 'Tinctures';
+  if (cat === 'cbd') {
+    if (sub === 'sublinguals' || sub === 'capsules' || sub === 'tablets') return 'Tinctures';
+    return 'Edibles';
+  }
+
+  // Topicals
+  if (cat === 'topical' || cat === 'topicals') return 'Topicals';
+
+  // Accessories
+  if (cat === 'accessories' || cat === 'apparel') return 'Accessories';
+
+  // Fallback
+  return rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1);
+}
+
 async function upsertSingleProduct(
   product: InterceptedProduct,
   dispensaryId: string,
@@ -468,11 +527,17 @@ async function upsertSingleProduct(
     brand:       product.brand,
   })
 
+  const normalizedCategory = normalizeCategory(
+    product.category ?? '',
+    product.subcategory ?? '',
+    product.name ?? '',
+  )
+
   const payload = {
     dispensary_id: dispensaryId,
     name: product.name,
     brand: product.brand || null,
-    category: product.category || null,
+    category: normalizedCategory || null,
     subcategory: product.subcategory || null,
     subtype: subtype,
     strain_type: product.strainType || null,
@@ -482,6 +547,9 @@ async function upsertSingleProduct(
     price: product.price,
     original_price: product.originalPrice || null,
     on_sale: product.onSale || false,
+    discount_pct: (product.onSale && (product.originalPrice || 0) > 0 && (product.originalPrice || 0) > product.price)
+      ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 10000) / 100
+      : null,
     deal_description: product.dealDescription || null,
     in_stock: product.inStock !== false,
     image_url: product.imageUrl || null,
@@ -708,18 +776,44 @@ function parseJaneProducts(products: Record<string, unknown>[], storeId: number)
       // Values are unit labels ("gram", "half gram", "two gram"), not parseable weight strings.
       // This covers plain-named products (e.g. "Ape" vape carts, loose flower sold per gram).
       const JANE_WEIGHT_MAP: Record<string, number> = {
+        // space-format (legacy Jane)
         'half gram': 0.5,
-        'gram':      1,
         'two gram':  2,
         'eighth':    3.5,
         'quarter':   7,
         'half':      14,
-        'ounce':     28,
+        // underscore-format (Algolia index)
+        'half_gram':      0.5,
+        'gram':           1,
+        'two_gram':       2,
+        'eighth_ounce':   3.5,
+        'quarter_ounce':  7,
+        'half_ounce':     14,
+        'ounce':          28,
+      }
+      const PRICE_FIELD_WEIGHT_MAP: Record<string, number> = {
+        'price_gram':          1,
+        'price_half_gram':     0.5,
+        'price_two_gram':      2,
+        'price_eighth_ounce':  3.5,
+        'price_quarter_ounce': 7,
+        'price_half_ounce':    14,
+        'price_ounce':         28,
       }
       const availableWeights = sa.available_weights as string[] | undefined
       if (Array.isArray(availableWeights) && availableWeights.length > 0) {
         const mapped = JANE_WEIGHT_MAP[availableWeights[0]]
         weightGrams = mapped ?? parseWeight(availableWeights[0]) ?? undefined
+      }
+      // Fix 2: price_[weight] field fallback when available_weights is absent or unresolved
+      if (!weightGrams) {
+        for (const [field, grams] of Object.entries(PRICE_FIELD_WEIGHT_MAP)) {
+          const val = Number((item as Record<string, unknown>)[field] ?? (sa as Record<string, unknown>)[field] ?? 0)
+          if (val > 0) {
+            weightGrams = grams
+            break
+          }
+        }
       }
     }
 
@@ -1464,6 +1558,63 @@ async function deleteStaleProducts(dispensaryId: string, scrapedProducts: Interc
   return staleIds.length
 }
 
+const DAILY_STATS_CATEGORIES: Array<{
+  key: string
+  category: string
+  weight_grams: number
+  subcategory_ilike?: string
+}> = [
+  { key: 'eighth',          category: 'Flower',           weight_grams: 3.5 },
+  { key: '1g_cart',         category: 'Vape Carts 510',   weight_grams: 1   },
+  { key: '100mg_edible',    category: 'Edibles',          weight_grams: 1   },
+  { key: '1g_live_resin',   category: 'Concentrates',     weight_grams: 1,  subcategory_ilike: '%live resin%' },
+  { key: 'single_preroll',  category: 'Pre-Rolls',        weight_grams: 1   },
+  { key: 'infused_preroll', category: 'Infused Pre-Rolls', weight_grams: 1  },
+  { key: '1g_disposable',   category: 'Disposables',      weight_grams: 1   },
+]
+
+async function computeDailyStats(): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+
+  console.log('\n══ Computing Daily Stats ══')
+
+  for (const def of DAILY_STATS_CATEGORIES) {
+    let q = supabase
+      .from('products')
+      .select('price')
+      .eq('category', def.category)
+      .eq('weight_grams', def.weight_grams)
+      .eq('in_stock', true)
+
+    if (def.subcategory_ilike) {
+      q = q.ilike('subcategory', def.subcategory_ilike)
+    }
+
+    const { data, error } = await q
+    if (error) {
+      console.error(`  ✗ ${def.key}: ${error.message}`)
+      continue
+    }
+
+    const prices = (data ?? []).map(r => Number(r.price)).filter(p => p > 0)
+    const avg_price = prices.length > 0
+      ? Math.round((prices.reduce((s, p) => s + p, 0) / prices.length) * 100) / 100
+      : null
+    const sample_size = prices.length
+
+    const { error: upsertErr } = await supabase
+      .from('daily_stats')
+      .upsert({ date: today, category_key: def.key, avg_price, sample_size },
+               { onConflict: 'date,category_key', ignoreDuplicates: true })
+
+    if (upsertErr) {
+      console.error(`  ✗ upsert ${def.key}: ${upsertErr.message}`)
+    } else {
+      console.log(`  ✓ ${def.key.padEnd(18)} avg=$${avg_price ?? '—'} n=${sample_size}`)
+    }
+  }
+}
+
 async function main() {
   const janeOnly     = process.argv.includes('--jane-only')
   const dutchieOnly  = process.argv.includes('--dutchie-only')
@@ -1662,6 +1813,13 @@ async function main() {
     console.log(`✓ Winners: ${result.computed} categories (${result.empty} empty)`)
   } catch (e) {
     console.error('✗ compute-winners error:', e)
+  }
+
+  // ── Capture daily market averages ─────────────────────────────────────────
+  try {
+    await computeDailyStats()
+  } catch (e) {
+    console.error('✗ computeDailyStats error:', e)
   }
 }
 

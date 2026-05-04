@@ -22,7 +22,7 @@ interface BriefJson {
   intro: string;
   dealCommentary: { productId: string; quip: string }[];
   savageCorner: string;
-  bigMikeTea: string[];
+  bigMikeBundlesAndBogos?: string[];  // omitted when no deals qualify
   touristTerry: string;
   marketRating: number;
   ratingQuote: string;
@@ -70,11 +70,12 @@ ${brief.dealCommentary.map(d => `<li><strong>${d.productId}</strong>: ${d.quip}<
 <h3>Savage Corner</h3>
 <p>${brief.savageCorner}</p>
 
-<h3>Big Mike's Tea (3 gossip items)</h3>
+${brief.bigMikeBundlesAndBogos && brief.bigMikeBundlesAndBogos.length > 0 ? `<h3>Big Mike's Bundles &amp; BOGOs</h3>
+<p style="font-size:12px;color:#888;margin-top:-8px;">if it doesn't beat buying one, Big Mike didn't post it</p>
 <ol>
-${brief.bigMikeTea.map(t => `<li>${t}</li>`).join("\n")}
+${brief.bigMikeBundlesAndBogos.map(t => `<li>${t}</li>`).join("\n")}
 </ol>
-
+` : ""}
 <h3>Tourist Terry's Tip</h3>
 <p>${brief.touristTerry}</p>
 
@@ -127,6 +128,16 @@ export async function GET(req: NextRequest) {
 
   if (existing) {
     return NextResponse.json({ message: "Brief already generated for today", date: today });
+  }
+
+  // Fetch on-sale count directly — do NOT let LLM infer this from Big Mike's deal list
+  const { count: onSaleCount, error: onSaleError } = await supabase
+    .from("products")
+    .select("*", { count: "exact", head: true })
+    .eq("on_sale", true);
+
+  if (onSaleError) {
+    console.error("Failed to fetch on_sale count:", onSaleError.message);
   }
 
   // Fetch market data
@@ -197,7 +208,7 @@ export async function GET(req: NextRequest) {
   const stats = {
     totalProducts: prices.length,
     dispensaryCount: 16,
-    onSaleCount: topDeals.length,
+    onSaleCount: onSaleCount ?? 0,
     minPrice: prices.length ? Math.min(...prices) : 0,
     avgPrice: prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0,
   };
@@ -228,10 +239,24 @@ export async function GET(req: NextRequest) {
   }).filter((p) => p.discountPct > 0).slice(0, 4);
 
   const bigMikeContext = bigMikeDeals && bigMikeDeals.length > 0
-    ? `\nBIG MIKE'S VERIFIED DEALS (from deals page scraper — use for bigMikeTea):\n${bigMikeDeals.map((d, i) =>
-        `${i + 1}. [${d.confidence?.toUpperCase()}] ${d.dispensary_name} — ${d.deal_headline} | $${(d.verified_savings ?? 0).toFixed(2)} savings`
-      ).join("\n")}`
-    : "\nBIG MIKE'S DEALS: none verified today — use market data for bigMikeTea";
+    ? `\nBIG MIKE'S BUNDLES & BOGOs (floor-qualified — use for bigMikeBundlesAndBogos):
+${bigMikeDeals.map((d, i) => {
+  const tier = (d.deal_json as any)?.deal_tier ?? d.confidence;
+  const tierLabel = tier === "floor_beater"
+    ? "FLOOR BEATER — cheapest in the city right now"
+    : "BRAND BEST — cheapest this brand has been, but cheaper alternatives exist in category";
+  return `${i + 1}. [${tierLabel}] ${d.dispensary_name} — ${d.deal_headline} | $${(d.verified_savings ?? 0).toFixed(2)} savings`;
+}).join("\n")}
+
+Big Mike voice rules by tier:
+- FLOOR BEATER: write with urgency. This is the cheapest this item exists in the city right now. Be direct. "Checked it myself."
+- BRAND BEST: acknowledge cheaper exists in the category. "if [brand] is your thing, this is the move — but if you're flexible, cheaper is on the board." Never write brand_best with floor_beater urgency.`
+    : null;
+
+  // If Big Mike has no qualifying deals, omit bigMikeBundlesAndBogos from the brief entirely
+  const bigMikeInstruction = bigMikeContext
+    ? `${bigMikeContext}\n\nInclude "bigMikeBundlesAndBogos" in your response using these deals. Section name: "Big Mike's Bundles & BOGOs — if it doesn't beat buying one, Big Mike didn't post it"`
+    : `BIG MIKE'S BUNDLES & BOGOs: none qualified today. OMIT the "bigMikeBundlesAndBogos" field from your JSON entirely — do not generate placeholder copy.`;
 
   const dataContext = buildDataContext({
     topDeals,
@@ -262,20 +287,18 @@ export async function GET(req: NextRequest) {
 
 Market data:
 ${dataContext}
-${bigMikeContext}
 
-Return ONLY a valid JSON object with exactly these fields (no markdown, no code blocks, raw JSON only):
+${bigMikeInstruction}
+
+Return ONLY a valid JSON object with these fields (no markdown, no code blocks, raw JSON only).
+"bigMikeBundlesAndBogos" is OPTIONAL — only include it if Big Mike has qualifying deals above:
 {
   "intro": "2-3 sentence Ziggy opener for today based on the actual data",
   "dealCommentary": [
     {"productId": "product name from top deals", "quip": "one punchy Ziggy sentence"}
   ],
   "savageCorner": "one Ziggy paragraph roasting something real from the data",
-  "bigMikeTea": [
-    "one gossip sentence about a dispensary based on data",
-    "second gossip sentence",
-    "third gossip sentence"
-  ],
+  "bigMikeBundlesAndBogos": ["only include this field if Big Mike deals exist — omit entirely if not"],
   "touristTerry": "one practical Terry tip based on strip deals today",
   "marketRating": 7.5,
   "ratingQuote": "one sentence Ziggy quote explaining the rating"

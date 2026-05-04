@@ -263,7 +263,7 @@ export default function Page1({ data, gate }: { data: PageData; gate: GateProps 
         <a href="/" className="section-link section-current">Front Page</a>
         <a href="/#sheet" className="section-link">The Sheet</a>
         <a href="/#top10" className="section-link">Top 10 Winners</a>
-        <a href="#" className="section-link">Big Mike&apos;s Tea</a>
+        <a href="#" className="section-link">Big Mike&apos;s Bundles &amp; BOGOs</a>
         <a href="#" className="section-link">Tourist Terry</a>
         <a href="#" className="section-link">Ziggy&apos;s Column</a>
       </nav>

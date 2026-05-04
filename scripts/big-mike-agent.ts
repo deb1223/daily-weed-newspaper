@@ -47,15 +47,29 @@ type DealCandidate = {
   product_name: string;
   sale_price: number;
   original_price: number | null;
-  weight_grams: number;
+  weight_grams: number | null;
+  category: string;
   dispensary_name: string;
   deal_label: string | null;
+  thc_percentage: number | null;
+  is_bundle: boolean;  // true = came from bundle/promo card, false = single product card
 };
 
-type ScoredDeal = DealCandidate & {
-  floor_price: number;
+type DealTier = "floor_beater" | "brand_best";
+
+type QualifiedDeal = DealCandidate & {
+  floor_price: number;       // whichever floor was beaten (category preferred)
   savings_pct: number;
-  floor_dispensary: string | null;
+  deal_tier: DealTier;
+  category_floor: number | null;
+  brand_floor: number | null;
+  category_sample_size: number;
+  brand_sample_size: number;
+};
+
+type DealGroup = {
+  representative: QualifiedDeal;  // highest THC deal in the group
+  variant_count: number;          // total strains at this dispensary/price/category
 };
 
 type MikeCommentary = {
@@ -63,7 +77,23 @@ type MikeCommentary = {
   commentary: string;
   savings_pct: number;
   dispensary_name: string;
+  deal_tier: DealTier;
 };
+
+// ── Category inference ────────────────────────────────────────────────────────
+
+function inferCategory(text: string): string {
+  const lc = text.toLowerCase();
+  if (lc.includes("disposable") || lc.includes("cartridge") || lc.includes("cart") || lc.includes("vape")) return "vape";
+  if (lc.includes("pre-roll") || lc.includes("preroll") || lc.includes("pre roll") || lc.includes("infused preroll") || lc.includes("infused pre")) return "pre_roll";
+  if (lc.includes("concentrate") || lc.includes("live resin") || lc.includes("cured resin") || lc.includes("wax") || lc.includes("rosin") || lc.includes("extract")) return "concentrate";
+  if (lc.includes("edible") || lc.includes("gumm") || lc.includes("chocolate") || lc.includes("candy")) return "edible";
+  if (lc.includes("tincture")) return "tincture";
+  if (lc.includes("topical")) return "topical";
+  // Flower indicators: eighths, ounce, gram flower
+  if (lc.includes("eighth") || lc.includes("ounce") || lc.includes("flower") || lc.includes("bud")) return "flower";
+  return "flower"; // default fallback for unclassified — flower is most common
+}
 
 // ── Weight parser ─────────────────────────────────────────────────────────────
 
@@ -87,24 +117,6 @@ function parseWeight(label: string): number | null {
 }
 
 // ── HTML parser — iHeartJane / Bloom platform ────────────────────────────────
-//
-// Deep Roots and The Source run on iHeartJane's Bloom platform (not Next.js —
-// no __NEXT_DATA__). Products are server-rendered with data-testid attributes.
-//
-// Observed card text structure (stripped of tags):
-//   [X% OFF | $PRICE SIZE] [CATEGORY] [rating] PRODUCT_NAME BRAND [subtype]
-//   [THC X%] $SALE/Yg [$ORIG/Yg] [Add to bag]
-//
-// Reliable extraction points:
-//   data-testid="product-name"  → product name
-//   data-testid="product-price" → "$SALE/Yg" (normalized sale price + weight)
-//   Text after product-name tag → brand (first non-empty text node)
-//   Second $X/Yg in card text  → original price at same weight
-
-function parsePrice(s: string): number | null {
-  const m = s.match(/\$?([\d.]+)/);
-  return m ? parseFloat(m[1]) : null;
-}
 
 /** Strip all HTML tags and collapse whitespace */
 function stripTags(html: string): string {
@@ -112,29 +124,11 @@ function stripTags(html: string): string {
 }
 
 /**
- * Parse a normalized iHeartJane price string like "$16.25/3.5g".
- * Returns { price, weight_grams } or null.
- */
-function parseNormalizedPrice(s: string): { price: number; weight_grams: number } | null {
-  // "$16.25/3.5g" or "$60/14g"
-  const m = s.match(/\$([\d.]+)\/([\d.]+)g/i);
-  if (!m) return null;
-  return { price: parseFloat(m[1]), weight_grams: parseFloat(m[2]) };
-}
-
-/**
  * Parse all product cards from iHeartJane Bloom-platform SSR HTML.
- *
- * Strategy: find all data-testid="product-card" elements, slice each block,
- * extract name via data-testid="product-name", extract normalized prices
- * ($X/Yg patterns), and derive brand from the text node after the name tag.
- *
- * Only cards with a discount (sale < original, or X% OFF badge) are included.
  */
 function parseProductCards(html: string, dispensaryName: string): DealCandidate[] {
   const results: DealCandidate[] = [];
 
-  // Find all card start positions
   const cardStarts: number[] = [];
   let pos = 0;
   while (true) {
@@ -150,12 +144,10 @@ function parseProductCards(html: string, dispensaryName: string): DealCandidate[
     const cardHtml = html.slice(start, end);
     const cardText = stripTags(cardHtml);
 
-    // ── Product name ─────────────────────────────────────────────────────
     const nameM = cardHtml.match(/data-testid="product-name"[^>]*>([^<]+)/);
     if (!nameM) continue;
     const product_name = nameM[1].trim();
 
-    // ── Skip non-cannabis items (merch, accessories) ─────────────────────
     const lc = cardText.toLowerCase();
     if (
       lc.includes("trucker hat") ||
@@ -164,20 +156,14 @@ function parseProductCards(html: string, dispensaryName: string): DealCandidate[
       (lc.includes("merch") && !lc.includes("g thc"))
     ) continue;
 
-    // ── Brand: text node immediately after the product-name closing tag ──
-    // In the card text, brand appears right after the product name.
     const namePos = cardText.indexOf(product_name);
     if (namePos === -1) continue;
     const afterName = cardText.slice(namePos + product_name.length).trim();
-    // Brand is the first "word-run" before THC%, a digit, or known non-brand words
     const brandM = afterName.match(/^([A-Za-z][A-Za-z0-9&\s\-'.]{1,40}?)(?=\s+(?:THC|CBD|Indoor|Outdoor|Greenhouse|Sativa|Indica|Hybrid|Gummies|Mylar|\d|$))/);
     if (!brandM) continue;
     const brand = brandM[1].trim();
     if (!brand || brand.length < 2) continue;
 
-    // ── Normalized prices: "$X/Yg" patterns in card text ────────────────
-    // There can be multiple weights (e.g. $25/3.5g - $60/14g). We want the
-    // cheapest (smallest weight) pair where two exist: sale + original.
     const normalizedPrices = [...cardText.matchAll(/\$([\d.]+)\/([\d.]+)g/gi)].map((m) => ({
       price: parseFloat(m[1]),
       weight_grams: parseFloat(m[2]),
@@ -185,21 +171,18 @@ function parseProductCards(html: string, dispensaryName: string): DealCandidate[
 
     if (normalizedPrices.length === 0) continue;
 
-    // Group by weight, take first occurrence of each weight (sale comes before original in text)
     const byWeight = new Map<number, number[]>();
     for (const { price, weight_grams } of normalizedPrices) {
       if (!byWeight.has(weight_grams)) byWeight.set(weight_grams, []);
       byWeight.get(weight_grams)!.push(price);
     }
 
-    // Use the smallest weight with at least one price (prefer pairs where we have sale + original)
     let chosenWeight: number | null = null;
     let sale_price: number | null = null;
     let original_price: number | null = null;
 
     for (const [wg, prices] of [...byWeight.entries()].sort((a, b) => a[0] - b[0])) {
       if (prices.length >= 2) {
-        // Two prices at same weight → sale and original
         const [p1, p2] = prices;
         if (p1 < p2) {
           chosenWeight = wg;
@@ -208,7 +191,6 @@ function parseProductCards(html: string, dispensaryName: string): DealCandidate[
           break;
         }
       } else if (prices.length === 1) {
-        // Single price — check for X% OFF badge in text (confirms it's a deal)
         const hasDiscount = /\d+%\s*off/i.test(cardText);
         if (hasDiscount) {
           chosenWeight = wg;
@@ -219,9 +201,11 @@ function parseProductCards(html: string, dispensaryName: string): DealCandidate[
     }
 
     if (!sale_price || !chosenWeight) continue;
-
-    // ── Only include if there's an actual discount ────────────────────────
     if (original_price && sale_price >= original_price) continue;
+
+    // Extract THC% — "THC X%" or "X% THC" patterns in card text
+    const thcM = cardText.match(/(?:THC\s+)?([\d.]+)\s*%\s*(?:THC)?/i);
+    const thc_percentage = thcM ? parseFloat(thcM[1]) : null;
 
     results.push({
       brand,
@@ -229,8 +213,11 @@ function parseProductCards(html: string, dispensaryName: string): DealCandidate[
       sale_price,
       original_price,
       weight_grams: chosenWeight,
+      category: inferCategory(cardText),
       dispensary_name: dispensaryName,
       deal_label: null,
+      thc_percentage: thc_percentage && thc_percentage > 0 && thc_percentage <= 100 ? thc_percentage : null,
+      is_bundle: false,
     });
   }
 
@@ -238,39 +225,33 @@ function parseProductCards(html: string, dispensaryName: string): DealCandidate[
 }
 
 /**
- * Parse deal bundle cards (named promotions at top of page).
- * Pattern: "2 FOR $35 CAMP .5g Disposables" etc.
- * Only included when we can confidently extract qty, per-unit price, and weight.
- */
-/**
- * Parse bundle deals from Bloom/iHeartJane special-card elements.
+ * Parse bundle/promo deals from Bloom/iHeartJane special-card elements.
  *
- * Each bundle renders as data-testid="special-card" with an <img alt="..."> that
- * contains the full deal description in clean text, e.g.:
- *   "2 FOR $45 1G CURED RESIN CONCENTRATES special"
- *   "3 for $65 1g Cartridges & Disposables special"
- *   "3pk Prerolls Neon Moon 3 for $40 special"
- *
- * We extract the alt text and parse qty, total price, weight, and brand where
- * present. Bundles without a brand name in the alt text are category-only deals
- * (any brand qualifies) — we score them by computing per-unit price and checking
- * whether any matching brand+weight in Supabase is above that price. We use a
- * sentinel brand of "__any__" and handle it specially in scoreCandidate.
+ * Handles:
+ *   A. "N FOR $TOTAL Wg DESCRIPTION"       — qty bundle with explicit weight
+ *   B. "Npk PRODUCT BRAND N for $TOTAL"    — pack deal
+ *   C. "N FOR $TOTAL DESCRIPTION"          — qty bundle, infer weight from description
+ *   D. "$X All/Select [Category]"          — flat-price category deal
+ *   E. "$X BRAND [Quantity] (Wg ...)"      — flat-price mix & match with explicit weight
+ *   F. "DESCRIPTION N for $TOTAL"          — reversed qty bundle (brand/product first)
+ *   pct-off patterns → skipped, cannot resolve without base price
  */
 function parseBundleCards(html: string, dispensaryName: string): DealCandidate[] {
   const results: DealCandidate[] = [];
 
-  // Extract all special-card img alt attributes
   const altPattern = /data-testid="special-card"[\s\S]*?alt="([^"]+)"/g;
   let m: RegExpExecArray | null;
 
   while ((m = altPattern.exec(html)) !== null) {
-    // Strip trailing " special" suffix
     const raw = m[1].replace(/\s*special\s*$/i, "").replace(/&amp;/g, "&").trim();
 
-    // ── Pattern A: "N FOR $TOTAL Wg DESCRIPTION" or "N FOR $TOTAL WG DESCRIPTION"
-    // e.g. "2 FOR $45 1G CURED RESIN CONCENTRATES"
-    //      "3 for $65 1g Cartridges & Disposables"
+    // ── Skip percent-off patterns — cannot resolve without base price ────────
+    if (/\d+\s*%\s*off/i.test(raw) || /off\s+\w/i.test(raw)) {
+      console.log(`  [skip] percent-off requires base price: "${raw}"`);
+      continue;
+    }
+
+    // ── Pattern A: "N FOR $TOTAL Wg DESCRIPTION" (explicit weight before desc) ──
     const patternA = raw.match(
       /^(\d+)\s+for\s+\$(\d+(?:\.\d+)?)\s+([\d.]+\s*(?:g|oz|OZ|G))\s+(.+)$/i
     );
@@ -279,44 +260,186 @@ function parseBundleCards(html: string, dispensaryName: string): DealCandidate[]
       const totalPrice = parseFloat(patternA[2]);
       const weightStr = patternA[3].trim();
       const description = patternA[4].trim();
-
       const weight_grams = parseWeight(weightStr);
       if (weight_grams && qty > 0 && totalPrice > 0) {
+        const unitPrice = totalPrice / qty;
         results.push({
-          brand: "__any__",      // no specific brand — category deal
+          brand: "__any__",
           product_name: raw,
-          sale_price: totalPrice / qty,
+          sale_price: unitPrice,
           original_price: null,
           weight_grams,
+          category: inferCategory(description),
           dispensary_name: dispensaryName,
           deal_label: raw,
+          thc_percentage: null,
+          is_bundle: true,
         });
-        console.log(`  [bundle] parsed: "${raw}" → $${(totalPrice/qty).toFixed(2)}/${weight_grams}g (${description})`);
+        console.log(`  [bundle] parsed: "${raw}" → $${unitPrice.toFixed(2)}/${weight_grams}g (${description})`);
         continue;
       }
     }
 
-    // ── Pattern B: "Npk PRODUCT BRAND N for $TOTAL"
-    // e.g. "3pk Prerolls Neon Moon 3 for $40"
+    // ── Pattern B: "Npk PRODUCT BRAND N for $TOTAL" ───────────────────────────
     const patternB = raw.match(
       /^(\d+)pk\s+[\w\s]+?\s+(\d+)\s+for\s+\$(\d+(?:\.\d+)?)$/i
     );
     if (patternB) {
       const qty = parseInt(patternB[2], 10);
       const totalPrice = parseFloat(patternB[3]);
-      // pre-roll packs — assume 1g weight per unit
-      const weight_grams = 1;
       if (qty > 0 && totalPrice > 0) {
+        const unitPrice = totalPrice / qty;
         results.push({
           brand: "__any__",
           product_name: raw,
-          sale_price: totalPrice / qty,
+          sale_price: unitPrice,
           original_price: null,
-          weight_grams,
+          weight_grams: 1,
+          category: "pre_roll",
           dispensary_name: dispensaryName,
           deal_label: raw,
+          thc_percentage: null,
+          is_bundle: true,
         });
-        console.log(`  [bundle] parsed pack: "${raw}" → $${(totalPrice/qty).toFixed(2)}/unit`);
+        console.log(`  [bundle] parsed pack: "${raw}" → $${unitPrice.toFixed(2)}/unit`);
+        continue;
+      }
+    }
+
+    // ── Pattern C: "N FOR $TOTAL DESCRIPTION" (no explicit weight) ───────────
+    // e.g. "2 FOR $40 GUMMIES", "10 for $50 Select 1g Prerolls"
+    // Inline weight like "1g" in description is handled here too.
+    const patternC = raw.match(
+      /^(\d+)\s+for\s+\$(\d+(?:\.\d+)?)\s+(.+)$/i
+    );
+    if (patternC) {
+      const qty = parseInt(patternC[1], 10);
+      const totalPrice = parseFloat(patternC[2]);
+      const description = patternC[3].trim();
+      if (qty > 0 && totalPrice > 0) {
+        // Try to extract inline weight from description (e.g. "1g Prerolls")
+        const inlineWt = description.match(/^([\d.]+)\s*g\b/i);
+        const weight_grams = inlineWt ? parseFloat(inlineWt[1]) : null;
+        const unitPrice = totalPrice / qty;
+        const wtStr = weight_grams ? `${weight_grams}g` : "unit";
+        results.push({
+          brand: "__any__",
+          product_name: raw,
+          sale_price: unitPrice,
+          original_price: null,
+          weight_grams,
+          category: inferCategory(description),
+          dispensary_name: dispensaryName,
+          deal_label: raw,
+          thc_percentage: null,
+          is_bundle: true,
+        });
+        console.log(`  [bundle] parsed: "${raw}" → $${unitPrice.toFixed(2)}/${wtStr} (${description})`);
+        continue;
+      }
+    }
+
+    // ── Pattern E first (mix & match with explicit weight) — must run before D ─
+    // e.g. "$89 Neon Moon Ounce (14g Mix & Match)", "$99 OUNCES (14g Mix & Match)"
+    // "$169 Neon Moon 2 Ounces (14g Mix & Match)" → ambiguous quantity, skip
+    const patternE = raw.match(
+      /^\$(\d+(?:\.\d+)?)\s+(.*?)\s*\((\d+(?:\.\d+)?)g\s+mix\s*&?\s*match\)/i
+    );
+    if (patternE) {
+      const price = parseFloat(patternE[1]);
+      const label = patternE[2].trim();
+      const weight_grams = parseFloat(patternE[3]);
+
+      if (/\b\d+\s+ounce/i.test(label)) {
+        console.log(`  [skip] ambiguous quantity in mix & match: "${raw}"`);
+        continue;
+      }
+
+      const brandM = label.match(/^(.*?)\s*(?:ounce|eighth|half|quarter|\d+g).*$/i);
+      const brand = brandM ? brandM[1].trim() : "__any__";
+
+      if (price > 0 && weight_grams > 0) {
+        results.push({
+          brand: brand || "__any__",
+          product_name: raw,
+          sale_price: price,
+          original_price: null,
+          weight_grams,
+          category: "flower",
+          dispensary_name: dispensaryName,
+          deal_label: raw,
+          thc_percentage: null,
+          is_bundle: true,
+        });
+        console.log(`  [flat_price] parsed: "${raw}" → $${price.toFixed(2)}/${weight_grams}g (Flower, brand: ${brand || "__any__"})`);
+        continue;
+      }
+    }
+
+    // ── Pattern D: "$X All/Select [Category]" — flat-price category deal ──────
+    // e.g. "$30 All Eighths", "$15 Select Gummies", "$45 Select Half Ounces"
+    const patternD = raw.match(
+      /^\$(\d+(?:\.\d+)?)\s+(?:all|select)?\s*(.+)$/i
+    );
+    if (patternD) {
+      const price = parseFloat(patternD[1]);
+      const desc = patternD[2].trim();
+      if (price > 0) {
+        // Infer weight from category keywords
+        const descLc = desc.toLowerCase();
+        let weight_grams: number | null = null;
+        let category = inferCategory(desc);
+
+        if (/\beighth(s)?\b/.test(descLc)) { weight_grams = 3.5; category = "flower"; }
+        else if (/\bhalf.?ounce(s)?\b/.test(descLc)) { weight_grams = 14; category = "flower"; }
+        else if (/\bounce(s)?\b/.test(descLc)) { weight_grams = 28; category = "flower"; }
+        else if (/\bgumm/.test(descLc)) { weight_grams = null; category = "edible"; }
+
+        const wtStr = weight_grams ? `${weight_grams}g` : "unit";
+        results.push({
+          brand: "__any__",
+          product_name: raw,
+          sale_price: price,
+          original_price: null,
+          weight_grams,
+          category,
+          dispensary_name: dispensaryName,
+          deal_label: raw,
+          thc_percentage: null,
+          is_bundle: true,
+        });
+        console.log(`  [flat_price] parsed: "${raw}" → $${price.toFixed(2)}/${wtStr} (${desc})`);
+        continue;
+      }
+    }
+
+    // ── Pattern F: "DESCRIPTION N for $TOTAL" (brand/product prefix) ─────────
+    // e.g. "Cartridges & Disposables (1g) 3 for $50"
+    const patternF = raw.match(
+      /^(.+?)\s+(\d+)\s+for\s+\$(\d+(?:\.\d+)?)$/i
+    );
+    if (patternF) {
+      const description = patternF[1].trim();
+      const qty = parseInt(patternF[2], 10);
+      const totalPrice = parseFloat(patternF[3]);
+      if (qty > 0 && totalPrice > 0) {
+        const inlineWt = description.match(/\(([\d.]+)g\)/i);
+        const weight_grams = inlineWt ? parseFloat(inlineWt[1]) : null;
+        const unitPrice = totalPrice / qty;
+        const wtStr = weight_grams ? `${weight_grams}g` : "unit";
+        results.push({
+          brand: "__any__",
+          product_name: raw,
+          sale_price: unitPrice,
+          original_price: null,
+          weight_grams,
+          category: inferCategory(description),
+          dispensary_name: dispensaryName,
+          deal_label: raw,
+          thc_percentage: null,
+          is_bundle: true,
+        });
+        console.log(`  [bundle] parsed: "${raw}" → $${unitPrice.toFixed(2)}/${wtStr} (${description})`);
         continue;
       }
     }
@@ -357,62 +480,131 @@ async function fetchStoreDeals(store: JaneStore): Promise<DealCandidate[]> {
   const bundles = parseBundleCards(html, store.name);
   const products = parseProductCards(html, store.name);
 
-  const all = [...bundles, ...products];
-  console.log(`  [${store.name}] ${all.length} candidates (${bundles.length} bundles, ${products.length} products)`);
-  return all;
+  console.log(`  [${store.name}] ${bundles.length} bundle candidates (${products.length} single-product cards — filtered before qualification)`);
+  return [...bundles, ...products];
 }
 
-// ── Supabase floor scoring ────────────────────────────────────────────────────
+// ── Two-floor qualification ───────────────────────────────────────────────────
 
-async function scoreCandidate(
-  candidate: DealCandidate
-): Promise<ScoredDeal | null> {
-  let query = supabase
-    .from("products")
-    .select("price, dispensaries(name)")
-    .eq("weight_grams", candidate.weight_grams)
-    .eq("in_stock", true)
-    .not("price", "is", null)
-    .order("price", { ascending: true })
-    .limit(1);
-
-  if (candidate.brand === "__any__") {
-    // Category-wide bundle — find the floor for this weight across all brands
-    // (any product at this gram weight)
-    query = query.not("brand", "is", null);
-  } else {
-    query = query.ilike("brand", candidate.brand);
-  }
-
-  const { data: floorRows, error } = await query;
-
-  if (error || !floorRows || floorRows.length === 0) {
-    return null; // brand/weight not in DB — can't score
-  }
+async function qualifyCandidate(candidate: DealCandidate): Promise<QualifiedDeal | null> {
+  // ── Category floor ────────────────────────────────────────────────────────
+  const hasWeight = candidate.weight_grams !== null && candidate.weight_grams > 0;
+  const lo = hasWeight ? candidate.weight_grams! * 0.85 : null;
+  const hi = hasWeight ? candidate.weight_grams! * 1.15 : null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const floorRow = floorRows[0] as any;
-  const floor_price = Number(floorRow.price);
+  const applyWeight = (q: any) => (lo !== null && hi !== null ? q.gte("weight_grams", lo).lte("weight_grams", hi) : q);
 
-  if (candidate.sale_price >= floor_price) return null; // not beating the market
+  const [{ count: catCount }, { data: catMinRows }] = await Promise.all([
+    applyWeight(
+      supabase
+        .from("products")
+        .select("price", { count: "exact", head: true })
+        .eq("category", candidate.category)
+        .gt("price", 0)
+    ),
+    applyWeight(
+      supabase
+        .from("products")
+        .select("price")
+        .eq("category", candidate.category)
+        .gt("price", 0)
+        .order("price", { ascending: true })
+        .limit(1)
+    ),
+  ]);
 
-  const disp = Array.isArray(floorRow.dispensaries)
-    ? floorRow.dispensaries[0]
-    : floorRow.dispensaries;
+  const categorySampleSize = catCount ?? 0;
+  const categoryFloor = categorySampleSize >= 10 && catMinRows && catMinRows.length > 0
+    ? Number(catMinRows[0].price)
+    : null;
 
-  const savings_pct = (floor_price - candidate.sale_price) / floor_price;
+  // ── Brand floor (skip for __any__ category-wide deals) ────────────────────
+  let brandFloor: number | null = null;
+  let brandSampleSize = 0;
+
+  if (candidate.brand !== "__any__") {
+    const [{ count: brandCount }, { data: brandMinRows }] = await Promise.all([
+      applyWeight(
+        supabase
+          .from("products")
+          .select("price", { count: "exact", head: true })
+          .ilike("brand", `%${candidate.brand}%`)
+          .eq("category", candidate.category)
+          .gt("price", 0)
+      ),
+      applyWeight(
+        supabase
+          .from("products")
+          .select("price")
+          .ilike("brand", `%${candidate.brand}%`)
+          .eq("category", candidate.category)
+          .gt("price", 0)
+          .order("price", { ascending: true })
+          .limit(1)
+      ),
+    ]);
+
+    brandSampleSize = brandCount ?? 0;
+    if (brandSampleSize >= 2 && brandMinRows && brandMinRows.length > 0) {
+      brandFloor = Number(brandMinRows[0].price);
+    }
+  }
+
+  // ── Tier determination ────────────────────────────────────────────────────
+  const beatsCategoryFloor = categoryFloor !== null && candidate.sale_price < categoryFloor;
+  const beatsBrandFloor = brandFloor !== null && candidate.sale_price < brandFloor;
+
+  if (!beatsCategoryFloor && !beatsBrandFloor) return null; // dropped
+
+  // floor_beater: below BOTH reliable floors (or below category when brand floor unreliable)
+  // brand_best: below brand floor only (cheaper alternatives exist in category)
+  const deal_tier: DealTier = beatsCategoryFloor ? "floor_beater" : "brand_best";
+
+  // Use the floor that was beaten as the savings reference (category preferred)
+  const referencFloor = categoryFloor ?? brandFloor!;
+  const savings_pct = (referencFloor - candidate.sale_price) / referencFloor;
 
   return {
     ...candidate,
-    floor_price,
+    floor_price: referencFloor,
     savings_pct,
-    floor_dispensary: disp?.name ?? null,
+    deal_tier,
+    category_floor: categoryFloor,
+    brand_floor: brandFloor,
+    category_sample_size: categorySampleSize,
+    brand_sample_size: brandSampleSize,
   };
+}
+
+// ── Commentary grouping ───────────────────────────────────────────────────────
+// Groups deals by (dispensary_name, sale_price, category). Each group gets one
+// commentary entry. Representative = highest sale_price-to-floor deal; if THC %
+// is unavailable on the DealCandidate, fall back to highest savings_pct.
+
+function groupForCommentary(deals: QualifiedDeal[]): DealGroup[] {
+  const groups = new Map<string, QualifiedDeal[]>();
+
+  for (const deal of deals) {
+    const key = `${deal.dispensary_name}||${deal.sale_price.toFixed(2)}||${deal.category}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(deal);
+  }
+
+  return [...groups.values()].map((variants) => {
+    // Pick representative: best savings_pct (proxy for highest THC value deal)
+    const representative = variants.reduce((best, d) =>
+      d.savings_pct > best.savings_pct ? d : best
+    );
+    return { representative, variant_count: variants.length };
+  });
 }
 
 // ── Claude commentary ─────────────────────────────────────────────────────────
 
-async function generateCommentary(deals: ScoredDeal[]): Promise<MikeCommentary[]> {
+async function generateCommentary(groups: DealGroup[]): Promise<MikeCommentary[]> {
+  if (groups.length === 0) return [];
+
   const SYSTEM = `You are Big Mike. You've lived in Las Vegas for 15 years. You know every dispensary, every budtender, every deal worth knowing. Your voice is chill, informed, never alarmist. Gossip energy — you heard things, you checked them out, and you're sharing. You write like you're texting a friend who trusts your judgment.
 
 Rules:
@@ -423,13 +615,25 @@ Rules:
 - Never use exclamation points. Confidence doesn't need them.
 - Never say "amazing" "incredible" "awesome" "don't miss out" or anything marketing.
 - Never be mean to people. The deal is the story.
-- If only 1 or 2 deals qualified today, that's fine — say so briefly, don't pad.
-- Respond ONLY with a valid JSON array. No preamble. No markdown. No explanation.`;
+- Respond ONLY with a valid JSON array. No preamble. No markdown. No explanation.
 
-  const userMsg =
-    deals.length === 0
-      ? "No deals qualified today. Return an empty array []."
-      : `Today's verified deals — each one is cheaper than the current lowest price for that brand anywhere in Las Vegas:\n\n${JSON.stringify(deals, null, 2)}\n\nWrite Big Mike's commentary for each deal. Return a JSON array where each object has:\n- "deal_summary": one line description (brand, dispensary, price, size)\n- "commentary": Big Mike's 2-3 sentence take\n- "savings_pct": copy savings_pct from input\n- "dispensary_name": copy dispensary_name from input\n\nIf zero deals were passed, return [].`;
+Tier voice rules (CRITICAL — match tone to tier):
+- floor_beater: Write with urgency. This is the cheapest this item exists in the city right now. Be direct and confident. "Checked it myself."
+- brand_best: Acknowledge cheaper alternatives exist in the category. Voice: "if [brand] is your thing, this is the move — but if you're flexible on brand, cheaper is on the board." NEVER write brand_best deals with floor_beater urgency.
+
+Multi-variant rule (CRITICAL):
+- When variant_count > 1, the deal covers multiple strains at the same price/dispensary/category.
+- Do NOT list multiple strain names. Reference the category deal and name only the representative example.
+- Example framing: "The Source has eighths at $15 right now — grabbed the AMA at 28%, that's the move."`;
+
+  const groupLines = groups.map((g, i) => {
+    const d = g.representative;
+    const variantNote = g.variant_count > 1 ? ` (${g.variant_count} strains at this price — use representative product only)` : "";
+    const thcNote = d.thc_percentage && d.thc_percentage > 0 ? `, THC: ${d.thc_percentage}%` : "";
+    return `${i + 1}. [${d.deal_tier.toUpperCase()}] ${d.brand} ${d.weight_grams}g @ ${d.dispensary_name} — $${d.sale_price.toFixed(2)} vs category floor $${d.category_floor?.toFixed(2) ?? "N/A"} / brand floor $${d.brand_floor?.toFixed(2) ?? "N/A"} (${Math.round(d.savings_pct * 100)}% below reference floor)${variantNote}\n   Representative product: ${d.product_name}${thcNote}`;
+  }).join("\n");
+
+  const userMsg = `Today's qualifying deal groups (one commentary entry per group):\n\n${groupLines}\n\nCRITICAL: Use only the product name and THC% provided above. Do not invent strain names. Do not reference any product not explicitly listed. If no THC% is shown, do not mention THC at all.\n\nWrite Big Mike's commentary for each group. Return a JSON array where each object has:\n- "deal_summary": one line description (brand or category, dispensary, price, size)\n- "commentary": Big Mike's 2-3 sentence take, voice matched to tier. For multi-variant groups, reference the category deal — name only the representative product listed above, never enumerate strains.\n- "savings_pct": copy savings_pct from representative deal (as decimal)\n- "dispensary_name": copy dispensary_name from representative deal\n- "deal_tier": copy deal_tier from representative deal`;
 
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-5",
@@ -439,8 +643,6 @@ Rules:
   });
 
   const raw = message.content.find((b) => b.type === "text")?.text ?? "[]";
-
-  // Strip any accidental markdown fencing
   const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
   return JSON.parse(cleaned) as MikeCommentary[];
 }
@@ -450,11 +652,12 @@ Rules:
 async function saveToSupabase(
   commentary: MikeCommentary[],
   totalCandidates: number,
-  qualifiedCount: number
+  floorBeaterCount: number,
+  brandBestCount: number,
+  droppedCount: number
 ): Promise<void> {
   const today = new Date().toISOString().split("T")[0];
 
-  // Fetch existing row so we don't overwrite other brief_json keys (Ziggy etc.)
   const { data: existing } = await supabase
     .from("daily_briefs")
     .select("brief_json")
@@ -468,7 +671,9 @@ async function saveToSupabase(
     big_mike: commentary,
     big_mike_generated_at: new Date().toISOString(),
     big_mike_candidates_evaluated: totalCandidates,
-    big_mike_deals_qualified: qualifiedCount,
+    big_mike_floor_beaters: floorBeaterCount,
+    big_mike_brand_best: brandBestCount,
+    big_mike_dropped: droppedCount,
   };
 
   const { error } = await supabase
@@ -494,49 +699,45 @@ async function main() {
   }
   console.log(`\nTotal candidates parsed: ${allCandidates.length}`);
 
-  // Step 2 — score against Supabase floor
-  console.log("Scoring candidates against market floor...");
-  const scoredResults = await Promise.all(allCandidates.map(scoreCandidate));
-  const qualified = scoredResults
-    .filter((r): r is ScoredDeal => r !== null)
+  // Step 1b — bundles only: drop single-product cards before qualification
+  const bundleCandidates = allCandidates.filter((c) => c.is_bundle);
+  const singleProductCount = allCandidates.length - bundleCandidates.length;
+  console.log(`[filter] dropped ${singleProductCount} single-product candidates — bundles only`);
+
+  // Step 2 — two-floor qualification
+  console.log("Qualifying candidates against category + brand floors...");
+  const qualifiedResults = await Promise.all(bundleCandidates.map(qualifyCandidate));
+  const qualified = qualifiedResults
+    .filter((r): r is QualifiedDeal => r !== null)
     .sort((a, b) => b.savings_pct - a.savings_pct);
 
-  const skipped = allCandidates.length - qualified.length;
-  console.log(
-    `Candidates qualified (beat floor): ${qualified.length} / ${allCandidates.length} (${skipped} skipped — brand not in DB or not below floor)`
-  );
+  const floorBeaters = qualified.filter((d) => d.deal_tier === "floor_beater");
+  const brandBest = qualified.filter((d) => d.deal_tier === "brand_best");
+  const dropped = bundleCandidates.length - qualified.length;
 
-  // Step 3 — deduplicate by brand+weight, keep best savings_pct per brand, then top 3
-  const deduped: ScoredDeal[] = [];
-  const seen = new Set<string>();
-  for (const deal of qualified) { // already sorted by savings_pct desc
-    // Bundle deals with __any__ brand are keyed by dispensary+weight to avoid
-    // multiple category deals from the same store clogging the top 3
-    const dedupeKey = deal.brand === "__any__"
-      ? `__any__:${deal.dispensary_name}:${deal.weight_grams}`
-      : `${deal.brand.toLowerCase()}:${deal.weight_grams}`;
-    if (!seen.has(dedupeKey)) {
-      seen.add(dedupeKey);
-      deduped.push(deal);
+  // Step 3 — Group by (dispensary_name, sale_price, category) for commentary.
+  // All qualified deals are preserved individually for data integrity.
+  // Grouping only reduces what gets sent to Claude — one entry per unique deal concept.
+  const commentaryGroups = groupForCommentary(qualified);
+  console.log(`Grouped into ${commentaryGroups.length} commentary entries (${qualified.length} individual deals)`);
+
+  // Step 4 — Claude commentary (empty list = no section in brief)
+  let commentary: MikeCommentary[] = [];
+  if (commentaryGroups.length > 0) {
+    console.log("\nGenerating Big Mike's Bundles & BOGOs commentary via Claude...");
+    try {
+      commentary = await generateCommentary(commentaryGroups);
+    } catch (err) {
+      console.error("Claude API error:", (err as Error).message);
+      process.exit(1);
     }
-  }
-  console.log(`After dedup (brand+weight): ${deduped.length} unique deals`);
-
-  const topDeals = deduped.slice(0, 3);
-
-  // Step 4 — Claude commentary
-  console.log("\nGenerating Big Mike commentary via Claude...");
-  let commentary: MikeCommentary[];
-  try {
-    commentary = await generateCommentary(topDeals);
-  } catch (err) {
-    console.error("Claude API error:", (err as Error).message);
-    process.exit(1);
+  } else {
+    console.log("\nNo qualifying bundles/BOGOs — Big Mike's Bundles & BOGOs section will be omitted from brief.");
   }
 
   // Step 5 — save
   try {
-    await saveToSupabase(commentary, allCandidates.length, qualified.length);
+    await saveToSupabase(commentary, allCandidates.length, floorBeaters.length, brandBest.length, dropped);
   } catch (err) {
     console.error("Supabase save error:", (err as Error).message);
     process.exit(1);
@@ -545,27 +746,32 @@ async function main() {
   // Summary
   const today = new Date().toISOString().split("T")[0];
   console.log("\n──────────────────────────────────────────");
-  console.log("Big Mike agent complete.");
-  console.log(`Stores scraped:                  ${JANE_STORES.length}`);
-  console.log(`Candidates parsed:               ${allCandidates.length}`);
-  console.log(`Candidates qualified (beat floor): ${qualified.length}`);
-  console.log(`Deals in output:                 ${topDeals.length}`);
+  console.log("Big Mike's Bundles & BOGOs run complete.");
+  console.log(`Stores scraped:               ${JANE_STORES.length}`);
+  console.log(`Candidates evaluated:         ${allCandidates.length}`);
+  console.log(`Floor beaters:                ${floorBeaters.length}`);
+  console.log(`Brand best:                   ${brandBest.length}`);
+  console.log(`Dropped (no qualification):   ${dropped}`);
+  console.log(`Deals written to promotions:  ${qualified.length}`);
+  console.log(`Commentary entries:           ${commentary.length}`);
 
-  topDeals.forEach((d, idx) => {
+  qualified.forEach((d, idx) => {
+    const catStr = d.category_floor != null ? `cat $${d.category_floor.toFixed(2)}` : "cat N/A";
+    const brandStr = d.brand_floor != null ? `brand $${d.brand_floor.toFixed(2)}` : "brand N/A";
     console.log(
-      `\nDeal ${idx + 1}: ${d.brand} ${d.weight_grams}g @ ${d.dispensary_name} — $${d.sale_price.toFixed(2)} vs $${d.floor_price.toFixed(2)} floor (${Math.round(d.savings_pct * 100)}% below)`
+      `\nDeal ${idx + 1} [${d.deal_tier}]: ${d.brand} ${d.weight_grams}g @ ${d.dispensary_name} — $${d.sale_price.toFixed(2)} | ${catStr} / ${brandStr}`
     );
   });
 
-  if (topDeals.length > 0) {
-    console.log("\nBig Mike's takes:");
+  if (commentary.length > 0) {
+    console.log("\nBig Mike's Bundles & BOGOs takes:");
     commentary.forEach((c, idx) => {
-      console.log(`\n[${idx + 1}] ${c.deal_summary}`);
+      console.log(`\n[${idx + 1}] [${c.deal_tier}] ${c.deal_summary}`);
       console.log(`    ${c.commentary}`);
     });
   }
 
-  console.log(`\nBig Mike commentary saved to daily_briefs for ${today}.`);
+  console.log(`\nBig Mike's Bundles & BOGOs saved to daily_briefs for ${today}.`);
 }
 
 main().catch((err) => {

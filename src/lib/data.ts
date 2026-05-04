@@ -128,7 +128,7 @@ const CATEGORY_GROUPS: Record<string, string[]> = {
   Flower: ["Flower", "flower"],
   "Pre-Rolls": ["Pre-Rolls", "pre-roll"],
   Edibles: ["Edible", "Edibles", "edible"],
-  Vape: ["Vape", "vape", "Vaporizers"],
+  Vape: ["Vape", "vape", "Vaporizers", "Vape Carts 510", "Disposables", "Specialty Pods"],
   Concentrates: ["Concentrate", "Concentrates", "extract"],
 };
 
@@ -253,7 +253,7 @@ const WINNER_CONFIG: {
 }[] = [
   { label: "Flower ($/g)",       cats: ["Flower", "flower"],                          maxGrams: 14, perGram: true },
   { label: "Pre-Rolls ($/g)",    cats: ["Pre-Rolls", "pre-roll"],                     maxGrams: 5,  perGram: true },
-  { label: "Vape ($/g)",         cats: ["Vape", "vape", "Vaporizers"],                maxGrams: 2,  perGram: true },
+  { label: "Vape ($/g)",         cats: ["Vape", "vape", "Vaporizers", "Vape Carts 510", "Disposables", "Specialty Pods"], maxGrams: 2,  perGram: true },
   { label: "Concentrates ($/g)", cats: ["Concentrate", "Concentrates", "extract"],    maxGrams: 3,  perGram: true },
   { label: "Edibles (100mg)",    cats: ["Edible", "Edibles", "edible"],               mgFilter: "100" },
 ];
@@ -550,12 +550,20 @@ async function getLucky7Averages(): Promise<Lucky7Averages> {
 
   try {
     // Fetch all in-stock products with price and relevant fields
-    const { data, error } = await supabase
-      .from("products")
-      .select("category, subcategory, name, price, weight_grams, thc_mg_total")
-      .eq("in_stock", true)
-      .not("price", "is", null)
-      .gt("price", 0);
+    const [{ data, error }, { count: totalCount }] = await Promise.all([
+      supabase
+        .from("products")
+        .select("category, subcategory, name, price, weight_grams, thc_mg_total")
+        .eq("in_stock", true)
+        .not("price", "is", null)
+        .gt("price", 0),
+      supabase
+        .from("products")
+        .select("*", { count: "exact", head: true })
+        .eq("in_stock", true)
+        .not("price", "is", null)
+        .gt("price", 0),
+    ]);
 
     if (error || !data) return fallback;
 
@@ -641,7 +649,7 @@ async function getLucky7Averages(): Promise<Lucky7Averages> {
       preroll:  avg(prerolls),
       infused:  avg(infused),
       disposable: avg(disposables),
-      totalListings: rows.length,
+      totalListings: totalCount ?? rows.length,
       lastUpdatedAt: now,
     };
   } catch {
