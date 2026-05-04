@@ -85,6 +85,19 @@ function slugify(str: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
+interface TerpeneColumns {
+  terpene_myrcene?: number
+  terpene_limonene?: number
+  terpene_caryophyllene?: number
+  terpene_linalool?: number
+  terpene_pinene?: number
+  terpene_terpinolene?: number
+  terpene_ocimene?: number
+  terpene_humulene?: number
+  terpene_nerolidol?: number
+  terpene_bisabolol?: number
+}
+
 interface InterceptedProduct {
   name: string
   brand?: string
@@ -101,6 +114,7 @@ interface InterceptedProduct {
   inStock?: boolean
   imageUrl?: string
   productUrl?: string
+  _dutchieTerpenes?: TerpeneColumns & { _raw?: Record<string, number> }
 }
 
 function parseWeight(text: string): number | null {
@@ -216,6 +230,68 @@ async function interceptDutchieProducts(
   }
 
   return products
+}
+
+// Dutchie uses space-separated title-case names, sometimes with Greek letters spelled out.
+// Alpha/Beta prefixes are normalised: Alpha Pinene + Beta Pinene → terpene_pinene (summed).
+const DUTCHIE_TERPENE_MAP: Record<string, keyof TerpeneColumns> = {
+  'myrcene':             'terpene_myrcene',
+  'beta myrcene':        'terpene_myrcene',
+  'limonene':            'terpene_limonene',
+  'd-limonene':          'terpene_limonene',
+  'caryophyllene':       'terpene_caryophyllene',
+  'beta caryophyllene':  'terpene_caryophyllene',
+  'β-caryophyllene':     'terpene_caryophyllene',
+  'linalool':            'terpene_linalool',
+  'pinene':              'terpene_pinene',
+  'alpha pinene':        'terpene_pinene',
+  'beta pinene':         'terpene_pinene',
+  'a-pinene':            'terpene_pinene',
+  'b-pinene':            'terpene_pinene',
+  'terpinolene':         'terpene_terpinolene',
+  'ocimene':             'terpene_ocimene',
+  'beta ocimene':        'terpene_ocimene',
+  'humulene':            'terpene_humulene',
+  'alpha humulene':      'terpene_humulene',
+  'nerolidol':           'terpene_nerolidol',
+  'trans nerolidol':     'terpene_nerolidol',
+  'trans-nerolidol':     'terpene_nerolidol',
+  'bisabolol':           'terpene_bisabolol',
+  'alpha bisabolol':     'terpene_bisabolol',
+}
+
+function parseDutchieTerpenes(
+  raw: unknown
+): (TerpeneColumns & { _raw?: Record<string, number> }) | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null
+
+  const cols: TerpeneColumns = {}
+  const overflow: Record<string, number> = {}
+
+  for (const t of raw as Record<string, unknown>[]) {
+    const val = Number(t.value ?? 0)
+    if (!val || val <= 0) continue
+
+    // Dutchie unit is PERCENTAGE — value is already a percentage
+    const pct = (t.unit as string)?.toUpperCase() === 'PERCENTAGE' ? val : val * 100
+
+    const rawName = String(
+      (t.libraryTerpene as Record<string, unknown> | undefined)?.name ?? ''
+    )
+    if (!rawName) continue
+
+    const key = DUTCHIE_TERPENE_MAP[rawName.toLowerCase()]
+    if (key) {
+      // Sum alpha+beta variants (e.g. alpha pinene + beta pinene → terpene_pinene)
+      cols[key] = ((cols[key] ?? 0) as number) + pct
+    } else {
+      overflow[rawName] = pct
+    }
+  }
+
+  if (Object.keys(cols).length === 0 && Object.keys(overflow).length === 0) return null
+
+  return Object.keys(overflow).length > 0 ? { ...cols, _raw: overflow } : cols
 }
 
 function extractProductsFromResponse(body: unknown, slug: string): InterceptedProduct[] {
@@ -338,6 +414,8 @@ function extractProductsFromResponse(body: unknown, slug: string): InterceptedPr
       ? `https://dutchie.com/dispensary/${slug}/product/${productId}`
       : undefined
 
+    const dutchieTerpenes = parseDutchieTerpenes(p.terpenes)
+
     products.push({
       name,
       brand,
@@ -349,6 +427,7 @@ function extractProductsFromResponse(body: unknown, slug: string): InterceptedPr
       weightGrams,
       inStock: p.isAvailable !== false && p.isSoldOut !== true,
       productUrl,
+      ...(dutchieTerpenes ? { _dutchieTerpenes: dutchieTerpenes } : {}),
     })
   }
 
@@ -514,8 +593,14 @@ async function upsertSingleProduct(
   dispensaryId: string,
   source: 'dutchie' | 'jane' | 'curaleaf' | 'carrot'
 ): Promise<'inserted' | 'updated' | 'failed'> {
-  // Carrot products carry terpene data via a private field
-  const terpenes = (product as InterceptedProduct & { _carrotTerpenes?: Record<string, number> })._carrotTerpenes ?? {}
+  // Merge terpene data from whichever source provided it (Carrot or Dutchie).
+  // Carrot uses _carrotTerpenes; Dutchie uses _dutchieTerpenes (with optional _raw overflow).
+  const carrotTerpenes = (product as InterceptedProduct & { _carrotTerpenes?: TerpeneColumns })._carrotTerpenes ?? {}
+  const dutchieData    = product._dutchieTerpenes ?? {}
+  const { _raw: dutchieRaw, ...dutchieTerpenes } = dutchieData
+  // Carrot data wins on conflict (COA-verified); Dutchie fills any gap
+  const terpenes: TerpeneColumns = { ...dutchieTerpenes, ...carrotTerpenes }
+  const terpenesRaw: Record<string, number> | null = dutchieRaw ?? null
 
   // Classify subtype using shared classifier.
   // Native subcategory field (from Jane: custom_product_subtype / root_subtype / brand_subtype)
@@ -567,6 +652,7 @@ async function upsertSingleProduct(
     ...(terpenes.terpene_humulene       != null ? { terpene_humulene:       terpenes.terpene_humulene       } : {}),
     ...(terpenes.terpene_nerolidol      != null ? { terpene_nerolidol:      terpenes.terpene_nerolidol      } : {}),
     ...(terpenes.terpene_bisabolol      != null ? { terpene_bisabolol:      terpenes.terpene_bisabolol      } : {}),
+    ...(terpenesRaw                               ? { terpenes_raw:          terpenesRaw                     } : {}),
   }
 
   // True upsert against the existing unique index on (dispensary_id, name, weight_grams).
@@ -1326,18 +1412,8 @@ interface CarrotLabResult {
   labResultUnit: { Percentage?: Record<string, unknown>; MilligramsPerGram?: Record<string, unknown> }
 }
 
-interface CarrotTerpenes {
-  terpene_myrcene?: number
-  terpene_limonene?: number
-  terpene_caryophyllene?: number
-  terpene_linalool?: number
-  terpene_pinene?: number
-  terpene_terpinolene?: number
-  terpene_ocimene?: number
-  terpene_humulene?: number
-  terpene_nerolidol?: number
-  terpene_bisabolol?: number
-}
+// Alias — Carrot and Dutchie share the same column shape
+type CarrotTerpenes = TerpeneColumns
 
 function parseCarrotLabResults(labResults: CarrotLabResult[]): { thc: number | undefined; cbd: number | undefined; terpenes: CarrotTerpenes } {
   let thc: number | undefined

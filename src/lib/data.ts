@@ -540,6 +540,16 @@ async function getDailyWinners(): Promise<DailyWinner[]> {
 }
 
 // ─── LUCKY 7 AVERAGES ─────────────────────────────────────────
+const LUCKY7_KEY_MAP: Record<string, keyof Pick<Lucky7Averages, "eighth" | "cart" | "edible" | "resin" | "preroll" | "infused" | "disposable">> = {
+  eighth:          "eighth",
+  "1g_cart":       "cart",
+  "100mg_edible":  "edible",
+  "1g_live_resin": "resin",
+  single_preroll:  "preroll",
+  infused_preroll: "infused",
+  "1g_disposable": "disposable",
+};
+
 async function getLucky7Averages(): Promise<Lucky7Averages> {
   const now = new Date().toISOString();
   const fallback: Lucky7Averages = {
@@ -549,14 +559,19 @@ async function getLucky7Averages(): Promise<Lucky7Averages> {
   };
 
   try {
-    // Fetch all in-stock products with price and relevant fields
+    const keys = Object.keys(LUCKY7_KEY_MAP);
+
+    // Fetch latest row per category key. ORDER BY date DESC + generous LIMIT ensures we
+    // get the most recent entry for each key even if some dates differ. Pick first
+    // occurrence of each key client-side. Do not filter by CURRENT_DATE — scraper writes
+    // in UTC which may be ahead of Las Vegas local time.
     const [{ data, error }, { count: totalCount }] = await Promise.all([
       supabase
-        .from("products")
-        .select("category, subcategory, name, price, weight_grams, thc_mg_total")
-        .eq("in_stock", true)
-        .not("price", "is", null)
-        .gt("price", 0),
+        .from("daily_stats")
+        .select("category_key, avg_price, sample_size, date")
+        .in("category_key", keys)
+        .order("date", { ascending: false })
+        .limit(keys.length * 3), // buffer for any date skew across keys
       supabase
         .from("products")
         .select("*", { count: "exact", head: true })
@@ -565,92 +580,29 @@ async function getLucky7Averages(): Promise<Lucky7Averages> {
         .gt("price", 0),
     ]);
 
-    if (error || !data) return fallback;
+    if (error || !data || data.length === 0) return fallback;
 
-    const rows = data as Array<{
-      category: string | null;
-      subcategory: string | null;
-      name: string | null;
-      price: number;
-      weight_grams: number | null;
-      thc_mg_total: number | null;
-    }>;
+    // Take the most recent row per key
+    const latest: Record<string, { avg_price: number | null; date: string }> = {};
+    for (const row of data as Array<{ category_key: string; avg_price: number | null; sample_size: number | null; date: string }>) {
+      if (!latest[row.category_key]) {
+        latest[row.category_key] = { avg_price: row.avg_price, date: row.date };
+      }
+    }
 
-    const lc = (s: string | null | undefined) => (s ?? "").toLowerCase();
-
-    const avg = (arr: number[]) =>
-      arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length;
-
-    const eighths = rows
-      .filter(r => lc(r.category).includes("flower") && r.weight_grams != null && Number(r.weight_grams) >= 3.0 && Number(r.weight_grams) <= 4.2)
-      .map(r => Number(r.price));
-
-    const carts = rows
-      .filter(r => {
-        const cat = lc(r.category);
-        const n = lc(r.name);
-        if (!cat.includes("vape") && !cat.includes("vapor") && !cat.includes("cartridge")) return false;
-        if (n.includes("disposable") || n.includes("all-in-one") || n.includes("all in one") || n.includes(" aio")) return false;
-        return true;
-      })
-      .map(r => Number(r.price));
-
-    const edibles = rows
-      .filter(r => {
-        const cat = lc(r.category);
-        return cat.includes("edible") || cat.includes("beverage") || cat.includes("gumm") || cat.includes("food");
-      })
-      .map(r => Number(r.price));
-
-    const resins = rows
-      .filter(r => {
-        const cat = lc(r.category);
-        const n = lc(r.name);
-        if (!cat.includes("concentrate") && !cat.includes("extract") && !cat.includes("wax") && !cat.includes("rosin")) return false;
-        return n.includes("live resin") || n.includes("live rosin") || n.includes("rosin");
-      })
-      .map(r => Number(r.price));
-
-    const prerolls = rows
-      .filter(r => {
-        const cat = lc(r.category);
-        const n = lc(r.name);
-        if (!cat.includes("pre-roll") && !cat.includes("preroll") && !cat.includes("pre roll")) return false;
-        if (/\b\d+-?pack\b|\/pk|\d+\s*x\s*\d*\.?\d+g/.test(n) || n.includes(" pack") || n.includes("multi")) return false;
-        if (n.includes("infused") || n.includes("liquid diamond") || n.includes("live resin") || n.includes("kief")) return false;
-        return true;
-      })
-      .map(r => Number(r.price));
-
-    const infused = rows
-      .filter(r => {
-        const cat = lc(r.category);
-        const n = lc(r.name);
-        if (!cat.includes("pre-roll") && !cat.includes("preroll") && !cat.includes("pre roll")) return false;
-        if (/\b\d+-?pack\b|\/pk|\d+\s*x\s*\d*\.?\d+g/.test(n) || n.includes(" pack") || n.includes("multi")) return false;
-        return n.includes("infused") || n.includes("liquid diamond") || n.includes("live resin") || n.includes("kief");
-      })
-      .map(r => Number(r.price));
-
-    const disposables = rows
-      .filter(r => {
-        const cat = lc(r.category);
-        const n = lc(r.name);
-        if (!cat.includes("vape") && !cat.includes("vapor") && !cat.includes("cartridge")) return false;
-        return n.includes("disposable") || n.includes("all-in-one") || n.includes("all in one") || n.includes(" aio");
-      })
-      .map(r => Number(r.price));
+    // Use the most recent date seen across all keys as lastUpdatedAt
+    const latestDate = Object.values(latest).map(r => r.date).sort().at(-1) ?? now;
 
     return {
-      eighth:   avg(eighths),
-      cart:     avg(carts),
-      edible:   avg(edibles),
-      resin:    avg(resins),
-      preroll:  avg(prerolls),
-      infused:  avg(infused),
-      disposable: avg(disposables),
-      totalListings: totalCount ?? rows.length,
-      lastUpdatedAt: now,
+      eighth:     latest["eighth"]?.avg_price         ?? null,
+      cart:       latest["1g_cart"]?.avg_price        ?? null,
+      edible:     latest["100mg_edible"]?.avg_price   ?? null,
+      resin:      latest["1g_live_resin"]?.avg_price  ?? null,
+      preroll:    latest["single_preroll"]?.avg_price  ?? null,
+      infused:    latest["infused_preroll"]?.avg_price ?? null,
+      disposable: latest["1g_disposable"]?.avg_price  ?? null,
+      totalListings: totalCount ?? 0,
+      lastUpdatedAt: latestDate,
     };
   } catch {
     return fallback;
