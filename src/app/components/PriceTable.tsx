@@ -49,7 +49,9 @@ const CATEGORIES = [
   "Flower",
   "Pre-Rolls",
   "Edibles",
-  "Vape",
+  "Vape — Carts 510",
+  "Vape — Disposables",
+  "Vape — Specialty Pods",
   "Concentrates",
   "Tinctures",
   "Accessories",
@@ -74,12 +76,24 @@ const SIZE_OPTIONS: Record<string, { label: string; value: string }[]> = {
     { label: "2-pack", value: "2pk" },
     { label: "5-pack", value: "5pk" },
   ],
-  Vape: [
+  "Vape — Carts 510": [
     { label: "All Sizes", value: "all" },
     { label: "0.3g", value: "0.3g" },
     { label: "0.5g", value: "0.5g" },
     { label: "1g", value: "1g" },
     { label: "2g", value: "2g" },
+  ],
+  "Vape — Disposables": [
+    { label: "All Sizes", value: "all" },
+    { label: "0.3g", value: "0.3g" },
+    { label: "0.5g", value: "0.5g" },
+    { label: "1g", value: "1g" },
+    { label: "2g", value: "2g" },
+  ],
+  "Vape — Specialty Pods": [
+    { label: "All Sizes", value: "all" },
+    { label: "0.5g", value: "0.5g" },
+    { label: "1g", value: "1g" },
   ],
   Concentrates: [
     { label: "All Sizes", value: "all" },
@@ -109,7 +123,9 @@ const CAT_MAP: Record<string, string[]> = {
   Flower:       ["Flower", "flower"],
   "Pre-Rolls":  ["Pre-Rolls", "pre-roll"],
   Edibles:      ["Edible", "Edibles", "edible"],
-  Vape:         ["Vape", "vape", "Vaporizers", "Vape Carts 510", "Disposables", "Specialty Pods"],
+  "Vape — Carts 510":      ["Vape Carts 510"],
+  "Vape — Disposables":    ["Disposables"],
+  "Vape — Specialty Pods": ["Specialty Pods"],
   Concentrates: ["Concentrate", "Concentrates", "extract"],
   Tinctures:    ["Tincture", "Oral", "oral"],
   Accessories:  ["Accessories", "Accessory", "CBD"],
@@ -141,7 +157,9 @@ function applySizeFilterToQuery(q: any, cat: string, size: string): any {
   const gramRanges: Record<string, Record<string, [number, number]>> = {
     Flower:       { "1g": [0.85,1.15], "3.5g": [3.0,4.0], "7g": [6.0,8.0], "14g": [12.0,16.0], "28g": [24.0,32.0] },
     "Pre-Rolls":  { "0.5g": [0.4,0.6], "1g": [0.85,1.15] },
-    Vape:         { "0.3g": [0.25,0.35], "0.5g": [0.4,0.6], "1g": [0.85,1.15], "2g": [1.7,2.3] },
+    "Vape — Carts 510":      { "0.3g": [0.25,0.35], "0.5g": [0.4,0.6], "1g": [0.85,1.15], "2g": [1.7,2.3] },
+    "Vape — Disposables":    { "0.3g": [0.25,0.35], "0.5g": [0.4,0.6], "1g": [0.85,1.15], "2g": [1.7,2.3] },
+    "Vape — Specialty Pods": { "0.5g": [0.4,0.6], "1g": [0.85,1.15] },
     Concentrates: { "0.5g": [0.4,0.6], "1g": [0.85,1.15], "2g": [1.7,2.3] },
   };
 
