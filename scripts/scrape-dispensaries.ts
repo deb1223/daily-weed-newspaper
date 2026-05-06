@@ -146,6 +146,67 @@ async function interceptDutchieProducts(
   const products: InterceptedProduct[] = []
   const intercepted: InterceptedResponse[] = []
 
+  // Terpene injection via APQ cache-miss forcing.
+  //
+  // Dutchie's frontend uses Automatic Persisted Queries (APQ): it sends GET requests
+  // with a query hash in `extensions.persistedQuery`. The server resolves the full
+  // query from its cache — we never see the query text and can't inject terpenes.
+  //
+  // Fix: intercept APQ GET requests for FilteredProducts and return a synthetic
+  // PersistedQueryNotFound error. The APQ client then retries as a full POST with
+  // the complete query text, which our handler rewrites to include terpenes before
+  // forwarding to Dutchie's server. The enriched response is picked up by the
+  // existing response listener.
+  await page.route('**/*graphql*', async (route) => {
+    const request = route.request()
+    const url = request.url()
+    const method = request.method()
+    const postData = request.postData()
+
+    // Step 1: APQ GET for FilteredProducts → force a cache miss so the client
+    // retries with the full query text as a POST.
+    if (method === 'GET' && url.includes('FilteredProducts')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          errors: [{ message: 'PersistedQueryNotFound', extensions: { code: 'PERSISTED_QUERY_NOT_FOUND' } }],
+        }),
+      })
+    }
+
+    // Step 2: POST retry (or any non-APQ POST) for FilteredProducts — inject terpenes.
+    if (postData?.includes('FilteredProducts')) {
+      try {
+        const body = JSON.parse(postData) as { query?: string; extensions?: Record<string, unknown>; [key: string]: unknown }
+
+        if (typeof body.query === 'string' && !body.query.includes('terpenes')) {
+          // Inject terpenes into the products selection set.
+          body.query = body.query
+            // products { → inject after opening brace
+            .replace(/(\bproducts\s*\{)/, '$1 terpenes { value unit libraryTerpene { name } }')
+            // products(...) { → inject after the closing paren + brace
+            .replace(/(\bproducts\s*\([^)]*\)\s*\{)/, '$1 terpenes { value unit libraryTerpene { name } }')
+
+          // CRITICAL: Remove the APQ sha256 hash — we've changed the query text so
+          // the original hash no longer matches. Without it, Dutchie treats this as
+          // a plain GraphQL POST and skips hash validation entirely.
+          if (body.extensions?.persistedQuery) delete body.extensions.persistedQuery
+
+          const newPostData = JSON.stringify(body)
+          return route.continue({
+            postData: newPostData,
+            headers: { ...request.headers(), 'content-length': String(Buffer.byteLength(newPostData)) },
+          })
+        }
+      } catch {
+        // fall through
+      }
+    }
+
+    route.continue()
+  })
+
   // Listen for API responses
   page.on('response', async response => {
     const url = response.url()
@@ -157,6 +218,11 @@ async function interceptDutchieProducts(
     ) {
       try {
         const body: unknown = await response.json()
+        // Skip our synthetic PersistedQueryNotFound fulfillments — they have no product data
+        const rb = body as Record<string, unknown>
+        if (Array.isArray(rb.errors) && (rb.errors as Record<string,unknown>[])[0]?.message === 'PersistedQueryNotFound') {
+          return
+        }
         intercepted.push({ url, body })
         console.log(`  📡 Intercepted GraphQL FilteredProducts: ${url.substring(0, 80)}`)
       } catch {
@@ -272,8 +338,15 @@ function parseDutchieTerpenes(
     const val = Number(t.value ?? 0)
     if (!val || val <= 0) continue
 
-    // Dutchie unit is PERCENTAGE — value is already a percentage
-    const pct = (t.unit as string)?.toUpperCase() === 'PERCENTAGE' ? val : val * 100
+    // Convert to percentage:
+    //   PERCENTAGE        → already a %
+    //   MILLIGRAMS_PER_GRAM → divide by 10 (10 mg/g = 1%)
+    const unitUpper = (t.unit as string)?.toUpperCase() ?? ''
+    const pct = unitUpper === 'PERCENTAGE'
+      ? val
+      : unitUpper === 'MILLIGRAMS_PER_GRAM'
+      ? val / 10
+      : val // unknown unit — store as-is (avoid mangling)
 
     const rawName = String(
       (t.libraryTerpene as Record<string, unknown> | undefined)?.name ?? ''
